@@ -1,0 +1,3 @@
+# Keep `site` as the Netlify package directory and leave the base directory unset.
+# Netlify will load this file from `site/`, but resolve build paths from the repo root.
+
