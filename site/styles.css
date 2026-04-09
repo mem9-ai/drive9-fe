@@ -1133,6 +1133,18 @@ body {
 
 .nav-contact {
     cursor: pointer;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    font-weight: 500;
+    padding: 0;
+    transition: color 0.2s ease;
+}
+
+.nav-contact:hover {
+    color: var(--text-primary);
 }
 
 /* ============================================
