@@ -498,13 +498,25 @@ c.Write("/output.json", result)</code>
     </div>
 
     <script>
+        let previousContactModalFocus = null;
+
         function openContactModal(e) {
             e.preventDefault();
-            document.getElementById('contactModal').classList.add('active');
+            previousContactModalFocus = document.activeElement;
+            const contactModal = document.getElementById('contactModal');
+            contactModal.classList.add('active');
+            const closeButton = contactModal.querySelector('.modal-close');
+            if (closeButton) {
+                closeButton.focus();
+            }
         }
 
         function closeContactModal() {
             document.getElementById('contactModal').classList.remove('active');
+            if (previousContactModalFocus && typeof previousContactModalFocus.focus === 'function') {
+                previousContactModalFocus.focus();
+            }
+            previousContactModalFocus = null;
         }
 
         document.getElementById('contactModal').addEventListener('click', function(e) {
