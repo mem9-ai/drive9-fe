@@ -143,7 +143,8 @@ body {
     gap: 32px;
 }
 
-.nav-links a {
+.nav-links a,
+.nav-links .nav-contact {
     color: var(--text-secondary);
     text-decoration: none;
     font-size: 0.875rem;
@@ -151,7 +152,9 @@ body {
     transition: color 0.2s ease;
 }
 
-.nav-links a:hover {
+.nav-links a:hover,
+.nav-links .nav-contact:hover,
+.nav-links .nav-contact:focus-visible {
     color: var(--text-primary);
 }
 
@@ -1133,6 +1136,10 @@ body {
 
 .nav-contact {
     cursor: pointer;
+    background: none;
+    border: none;
+    font-family: var(--font-sans);
+    padding: 0;
 }
 
 /* ============================================
