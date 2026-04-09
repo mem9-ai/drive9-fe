@@ -143,7 +143,8 @@ body {
     gap: 32px;
 }
 
-.nav-links a {
+.nav-links a,
+.nav-links .nav-contact {
     color: var(--text-secondary);
     text-decoration: none;
     font-size: 0.875rem;
@@ -151,7 +152,9 @@ body {
     transition: color 0.2s ease;
 }
 
-.nav-links a:hover {
+.nav-links a:hover,
+.nav-links .nav-contact:hover,
+.nav-links .nav-contact:focus-visible {
     color: var(--text-primary);
 }
 
@@ -1135,16 +1138,8 @@ body {
     cursor: pointer;
     background: none;
     border: none;
-    color: var(--text-secondary);
     font-family: var(--font-sans);
-    font-size: 0.875rem;
-    font-weight: 500;
     padding: 0;
-    transition: color 0.2s ease;
-}
-
-.nav-contact:hover {
-    color: var(--text-primary);
 }
 
 /* ============================================
