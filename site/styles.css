@@ -143,8 +143,7 @@ body {
     gap: 32px;
 }
 
-.nav-links a,
-.nav-links .nav-contact {
+.nav-links a {
     color: var(--text-secondary);
     text-decoration: none;
     font-size: 0.875rem;
@@ -152,9 +151,7 @@ body {
     transition: color 0.2s ease;
 }
 
-.nav-links a:hover,
-.nav-links .nav-contact:hover,
-.nav-links .nav-contact:focus-visible {
+.nav-links a:hover {
     color: var(--text-primary);
 }
 
@@ -848,105 +845,6 @@ body {
 .code-comment { color: #555555; }
 
 /* ============================================
-   Security Section
-   ============================================ */
-.security-section {
-    padding: 80px 0;
-    background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.02), transparent);
-}
-
-.security-label {
-    display: block;
-    text-align: center;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--text-muted);
-    margin-bottom: 16px;
-}
-
-.security-intro {
-    max-width: 700px;
-    margin-left: auto;
-    margin-right: auto;
-}
-
-.security-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 24px;
-    max-width: 800px;
-    margin: 0 auto;
-}
-
-.security-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-primary);
-    border-radius: var(--radius-xl);
-    padding: 32px;
-    transition: all 0.3s ease;
-}
-
-.security-card:hover {
-    border-color: var(--accent-gray);
-}
-
-.security-card h3 {
-    font-size: 1.25rem;
-    font-weight: 600;
-    margin-bottom: 16px;
-    color: var(--text-primary);
-}
-
-.security-card > p {
-    font-size: 0.9375rem;
-    color: var(--text-secondary);
-    line-height: 1.7;
-}
-
-.security-items {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-}
-
-.security-item {
-    display: flex;
-    gap: 16px;
-    align-items: flex-start;
-}
-
-.security-item-icon {
-    font-size: 1.25rem;
-    flex-shrink: 0;
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.security-item h4 {
-    font-size: 0.9375rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: 4px;
-}
-
-.security-item p {
-    font-size: 0.875rem;
-    color: var(--text-muted);
-    line-height: 1.6;
-}
-
-@media (max-width: 768px) {
-    .security-grid {
-        grid-template-columns: 1fr;
-    }
-}
-
-/* ============================================
    CTA Section
    ============================================ */
 .cta-section {
@@ -1132,116 +1030,6 @@ body {
 }
 
 /* ============================================
-   Contact Modal
-   ============================================ */
-.modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-    z-index: 200;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.25s ease, visibility 0.25s ease;
-}
-
-.modal-overlay.active {
-    opacity: 1;
-    visibility: visible;
-}
-
-.modal {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-primary);
-    border-radius: var(--radius-xl);
-    padding: 48px 40px;
-    max-width: 420px;
-    width: 90%;
-    text-align: center;
-    position: relative;
-    transform: translateY(16px) scale(0.97);
-    transition: transform 0.25s ease;
-}
-
-.modal-overlay.active .modal {
-    transform: translateY(0) scale(1);
-}
-
-.modal-close {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    background: transparent;
-    border: none;
-    color: var(--text-muted);
-    font-size: 1.5rem;
-    cursor: pointer;
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-sm);
-    transition: all 0.2s ease;
-}
-
-.modal-close:hover {
-    color: var(--text-primary);
-    background: var(--bg-tertiary);
-}
-
-.modal-icon {
-    font-size: 2.5rem;
-    margin-bottom: 20px;
-}
-
-.modal-title {
-    font-size: 1.5rem;
-    font-weight: 700;
-    margin-bottom: 12px;
-    color: var(--text-primary);
-}
-
-.modal-desc {
-    font-size: 0.9375rem;
-    color: var(--text-secondary);
-    line-height: 1.6;
-    margin-bottom: 24px;
-}
-
-.modal-email {
-    display: inline-block;
-    padding: 12px 28px;
-    background: var(--text-primary);
-    color: var(--bg-primary);
-    border-radius: var(--radius-md);
-    font-size: 0.9375rem;
-    font-weight: 600;
-    text-decoration: none;
-    transition: all 0.2s ease;
-}
-
-.modal-email:hover {
-    background: var(--accent-gray-light);
-    transform: translateY(-1px);
-}
-
-.nav-contact {
-    cursor: pointer;
-    background: none;
-    border: none;
-    font-family: var(--font-sans);
-    padding: 0;
-}
-
-/* ============================================
    Animations
    ============================================ */
 @keyframes fadeIn {
@@ -1265,3 +1053,45 @@ body {
 .hero > .container > *:nth-child(4) { animation-delay: 0.4s; }
 .hero > .container > *:nth-child(5) { animation-delay: 0.5s; }
 .hero > .container > *:nth-child(6) { animation-delay: 0.6s; }
+
+/* SDK Tabs */
+.sdk-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.sdk-tab {
+    padding: 8px 16px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.sdk-tab:hover {
+    border-color: var(--accent-gray);
+    color: var(--text-primary);
+}
+
+.sdk-tab.active {
+    background: var(--text-primary);
+    color: var(--bg-primary);
+    border-color: var(--text-primary);
+}
+
+.sdk-panel {
+    display: none;
+}
+
+.sdk-panel.active {
+    display: block;
+}
+
+.code-number { color: #ff9f43; }
