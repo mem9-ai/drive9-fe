@@ -95,7 +95,6 @@ drive9 fs sh
 Mount the remote filesystem as a local directory. A mount binds to the context active at mount time; after changing contexts, unmount and mount again.
 
 ```bash
-drive9 mount :/ ~/drive9
 drive9 mount :/data ~/drive9-data
 drive9 umount ~/drive9
 ```

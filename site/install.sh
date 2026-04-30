@@ -217,7 +217,7 @@ main() {
   printf "\n"
   printf "    ${BOLD}3.${RESET} Mount locally\n"
   printf "       ${DIM}\$${RESET} mkdir -p ~/drive9\n"
-  printf "       ${DIM}\$${RESET} drive9 mount :/ ~/drive9\n"
+  printf "       ${DIM}\$${RESET} drive9 mount :/data ~/drive9\n"
   printf "       ${DIM}\$${RESET} drive9 umount ~/drive9\n"
   printf "\n"
   printf "  Help: ${DIM}drive9 --help${RESET}  ${DIM}drive9 fs --help${RESET}\n"
