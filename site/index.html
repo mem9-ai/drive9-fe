@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>drive9 — Network drive with semantic search for AI agents</title>
-    <meta name="description" content="drive9 is a network drive with built-in semantic search for AI agents. Filesystem-like interface over tiered storage with automatic embedding and full-text indexing.">
+    <title>drive9 — Agent workspace for files, secrets, and retrieval</title>
+    <meta name="description" content="drive9 gives AI agents a filesystem workspace with semantic search, resumable uploads, context management, and read-only vault secret mounts.">
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-QJ6NGGWSZN"></script>
     <script>
         window.dataLayer = window.dataLayer || [];
@@ -51,7 +51,7 @@
                 <span class="gradient-text">for Files, Artifacts, and Retrieval</span>
             </h1>
             <p class="hero-subtitle">
-                drive9 extends agent state beyond memory.
+                drive9 extends agent state beyond memory with files, contexts, and vault secrets.
             </p>
             <a href="https://www.pingcap.com" target="_blank" rel="noopener noreferrer" class="hero-powered">
                 <span class="hero-powered-text">Powered by TiDB Cloud</span>
@@ -181,7 +181,7 @@
     <section class="features">
         <div class="container">
             <h2 class="section-title">Everything your agent needs</h2>
-            <p class="section-subtitle">Search, store, and manage files — all through a familiar filesystem interface.</p>
+            <p class="section-subtitle">Search, store, mount, and manage files through a familiar filesystem interface.</p>
 
             <div class="features-grid">
                 <!-- Feature 1: Semantic Search -->
@@ -208,7 +208,7 @@ $ drive9 search "deploy to production" --limit 5<br>
                 <div class="feature-card">
                     <div class="feature-icon">📂</div>
                     <h3>Mount like local storage</h3>
-                    <p>Mount drive9 — or vault secrets — at a local path. Use <code>ls</code>, <code>cat</code>, <code>vim</code>, <code>cp</code> directly on your remote data.</p>
+                    <p>Mount a drive9 remote path as a local filesystem, or mount vault secrets read-only. Use <code>ls</code>, <code>cat</code>, <code>vim</code>, <code>cp</code> directly on your data.</p>
                     <div class="code-block">
                         <code>$ drive9 mount :/data /mnt/drive9<br>
 Mounted drive9 at /mnt/drive9<br>
@@ -323,15 +323,15 @@ $ cargo add drive9</code>
     <section class="cli-section" id="cli">
         <div class="container">
             <h2 class="section-title">Unix-like CLI</h2>
-            <p class="section-subtitle">Familiar commands for a networked filesystem.</p>
+            <p class="section-subtitle">Familiar commands for contexts, files, vault secrets, and local mounts.</p>
 
             <div class="cli-examples">
                 <div class="cli-example">
                     <div class="cli-example-header">
                         <span class="cli-example-prompt">$</span>
-                        <span class="cli-example-cmd">drive9 fs cp ./local.txt :/remote/path.txt --tag env=prod</span>
+                        <span class="cli-example-cmd">drive9 fs cp ./local.txt :/remote/path.txt --tag env=prod --description "production config"</span>
                     </div>
-                    <p class="cli-example-desc">Upload a file with tags. Resumable, streamable, automatically indexed.</p>
+                    <p class="cli-example-desc">Upload a file with tags and a description. Resumable, streamable, automatically indexed.</p>
                 </div>
 
                 <div class="cli-example">
@@ -339,7 +339,7 @@ $ cargo add drive9</code>
                         <span class="cli-example-prompt">$</span>
                         <span class="cli-example-cmd">drive9 fs cat :/config/settings.json</span>
                     </div>
-                    <p class="cli-example-desc">Read file contents to stdout. Works with pipes and redirects.</p>
+                    <p class="cli-example-desc">Read file contents to stdout. Copy supports local files, remote paths, stdin, and stdout.</p>
                 </div>
 
                 <div class="cli-example">
@@ -371,7 +371,7 @@ $ cargo add drive9</code>
                         <span class="cli-example-prompt">$</span>
                         <span class="cli-example-cmd">drive9 ctx add --api-key &lt;key&gt; --name prod</span>
                     </div>
-                    <p class="cli-example-desc">Manage contexts: add, import, ls, use, rm — switch between databases instantly.</p>
+                    <p class="cli-example-desc">Manage owner and delegated contexts: add, import, ls, use, rm — switch between databases instantly.</p>
                 </div>
 
                 <div class="cli-example">
@@ -620,7 +620,7 @@ main();</code></pre>
                         <span class="logo-icon">◆</span>
                         <span class="logo-text">drive9</span>
                     </a>
-                    <p class="footer-tagline">Network drive with semantic search for AI agents.</p>
+                    <p class="footer-tagline">Agent workspace for files, secrets, and retrieval.</p>
 
                 </div>
                 <div class="footer-links">
