@@ -191,11 +191,11 @@
                     <p>Find files by meaning. Auto-embeddings and vector search powered by TiDB Cloud — no external pipeline, no API keys in your code.</p>
                     <div class="code-block">
                         <code># Search for configs related to deployment<br>
-$ drive9 search "deploy to production" --limit 5<br>
+$ drive9 fs grep "deploy to production" /<br>
 <br>
-/config/prod.env<br>
-/scripts/deploy.sh<br>
-/docs/deployment.md</code>
+/config/prod.env    0.91<br>
+/scripts/deploy.sh  0.84<br>
+/docs/deployment.md 0.78</code>
                     </div>
                     <div class="replaces">
                         <span class="replaces-label">replaces</span>
@@ -211,8 +211,6 @@ $ drive9 search "deploy to production" --limit 5<br>
                     <p>Mount a drive9 remote path as a local filesystem, or mount vault secrets read-only. Use <code>ls</code>, <code>cat</code>, <code>vim</code>, <code>cp</code> directly on your data.</p>
                     <div class="code-block">
                         <code>$ drive9 mount :/data /mnt/drive9<br>
-Mounted drive9 at /mnt/drive9<br>
-<br>
 $ ls /mnt/drive9/<br>
 dataset.tar  config.json  logs/<br>
 <br>
@@ -229,9 +227,9 @@ $ drive9 mount vault /mnt/secrets</code>
                 <div class="feature-card">
                     <div class="feature-icon">📚</div>
                     <h3>Smart summaries</h3>
-                    <p>Every directory can carry summary files. Agents scan cheaply before loading full content — saving tokens and time.</p>
+                    <p>Every directory can carry <code>.abstract.md</code> and <code>.overview.md</code>. Agents scan cheaply before loading full content — saving tokens and time.</p>
                     <div class="code-block">
-                        <code>$ drive9 cat :/data/.summary.md<br>
+                        <code>$ drive9 fs cat :/data/.overview.md<br>
 Dataset: Image classification training data<br>
 Size: 50K images, 10 classes<br>
 Format: PNG, 224x224<br>
@@ -251,12 +249,10 @@ Updated: 2024-01-15</code>
                     <p>Copy files without re-upload. Rename instantly. All metadata operations — no data movement, no storage cost for duplicates.</p>
                     <div class="code-block">
                         <code># Zero-copy link — no re-upload<br>
-$ drive9 cp :/data/file.bin :/backup/file.bin<br>
-Linked in 0.003s<br>
+$ drive9 fs cp :/data/file.bin :/backup/file.bin<br>
 <br>
 # Metadata-only rename<br>
-$ drive9 mv :/old/name.txt :/new/name.txt<br>
-Renamed in 0.001s</code>
+$ drive9 fs mv :/old/name.txt :/new/name.txt</code>
                     </div>
                     <div class="replaces">
                         <span class="replaces-label">replaces</span>
@@ -329,7 +325,7 @@ $ cargo add drive9</code>
                 <div class="cli-example">
                     <div class="cli-example-header">
                         <span class="cli-example-prompt">$</span>
-                        <span class="cli-example-cmd">drive9 fs cp ./local.txt :/remote/path.txt --tag env=prod --description "production config"</span>
+                        <span class="cli-example-cmd">drive9 fs cp --tag env=prod --description "production config" ./local.txt :/remote/path.txt</span>
                     </div>
                     <p class="cli-example-desc">Upload a file with tags and a description. Resumable, streamable, automatically indexed.</p>
                 </div>
