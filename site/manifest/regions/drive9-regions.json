@@ -25,6 +25,13 @@
       "server_url": "https://aws-us-east-1.drive9.ai",
       "cloud_provider": "aws",
       "tidb_region": "us-east-1"
+    },
+    {
+      "region_code": "alicloud-ap-southeast-1",
+      "mode": "tidb_cloud_native",
+      "server_url": "https://alicloud-ap-southeast-1.drive9.ai",
+      "cloud_provider": "alicloud",
+      "tidb_region": "ap-southeast-1"
     }
   ]
 }
