@@ -1,0 +1,5 @@
+site/studio/
+site/_redirects
+.env
+.env.*
+!.env.example
