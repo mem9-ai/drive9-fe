@@ -1,3 +1,20 @@
 # Keep `site` as the Netlify package directory and leave the base directory unset.
 # Netlify will load this file from `site/`, but resolve build paths from the repo root.
 
+[build]
+  command = "npm ci --prefix studio && npm run build:console --prefix studio -- --base=/studio/ && node scripts/prepare-studio.mjs"
+  publish = "site"
+
+[build.environment]
+  NODE_VERSION = "24.22.1"
+  NPM_VERSION = "11.6.2"
+
+[[headers]]
+  for = "/studio/config.json"
+  [headers.values]
+    Cache-Control = "no-store"
+
+[[headers]]
+  for = "/studio/index.html"
+  [headers.values]
+    Cache-Control = "no-cache"

@@ -64,7 +64,11 @@ a:hover { opacity: 0.6; }
     display: flex;
     align-items: center;
     padding: 40px 0;
+    justify-content: space-between;
 }
+
+.studio-link { font-size: 14px; color: var(--muted); }
+.studio-link:focus-visible { outline: 2px solid var(--ink); outline-offset: 6px; }
 
 .brand {
     font-size: 15px;
@@ -614,6 +618,7 @@ footer {
     <div class="page page-top">
         <header class="topbar">
             <a class="brand" href="/" aria-label="drive9 home">drive9</a>
+            <a class="studio-link" href="/studio/">Open Studio <span aria-hidden="true">↗</span></a>
         </header>
 
         <section class="hero" aria-labelledby="hero-title">
