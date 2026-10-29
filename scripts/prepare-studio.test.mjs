@@ -10,12 +10,25 @@ test('API and schema proxy rules precede the scoped SPA fallback', () => {
   assert.deepEqual(rules, [
     '/studio/api/* https://api.example.invalid/api/:splat 200!',
     '/studio/openapi.json https://api.example.invalid/openapi.json 200!',
-    '/studio /studio/ 301!',
     '/studio/* /studio/index.html 200',
   ]);
   // Existing site pages and real Studio assets must win over the SPA fallback.
   assert.ok(!rules.some(rule => rule.startsWith('/* ')));
   assert.ok(!rules.at(-1).endsWith('!'));
+});
+
+test('no redirect points to the same path after Netlify trailing-slash normalization', () => {
+  const origin = 'https://api.example.invalid';
+  const normalize = value => {
+    const url = new URL(value, origin);
+    return url.origin + (url.pathname.replace(/\/+$/, '') || '/') + url.search;
+  };
+  for (const rule of studioRedirects(origin).trim().split('\n')) {
+    const [from, to, status] = rule.split(/\s+/);
+    if (Number.parseInt(status, 10) >= 300 && Number.parseInt(status, 10) < 400) {
+      assert.notEqual(normalize(from), normalize(to), `Self redirect: ${rule}`);
+    }
+  }
 });
 
 test('reject unsafe or ambiguous deployment origins without echoing the value', () => {
