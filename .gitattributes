@@ -1,0 +1,3 @@
+# Keep compiler output byte-for-byte, including whitespace in JS template strings.
+vendor/studio/** linguist-generated=true
+vendor/studio/assets/*.js -whitespace
