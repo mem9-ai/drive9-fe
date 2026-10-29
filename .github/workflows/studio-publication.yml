@@ -1,0 +1,58 @@
+name: Trusted Studio publication validation
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  checks: write
+
+concurrency:
+  group: studio-publication-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate with trusted main
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # Never check out or execute candidate code in this workflow.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.22.1
+          package-manager-cache: false
+      - name: Register the required check on the immutable candidate head
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          id=$(gh api --method POST "repos/$GITHUB_REPOSITORY/check-runs" \
+            -f name='Studio artifact' -f head_sha="$HEAD_SHA" -f status=in_progress \
+            -f details_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq '.id')
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+      - name: Validate candidate data with trusted code
+        id: validate
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          ARTIFACT_ONLY: ${{ github.event.pull_request.user.type == 'Bot' || github.event.sender.type == 'Bot' || github.head_ref == 'automation/studio-console' }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$HEAD_SHA" "$PR_BASE"
+          node scripts/validate-studio-publication.mjs "$PR_BASE" "$HEAD_SHA" "$ARTIFACT_ONLY"
+      - name: Report the required result on that same head
+        if: always() && steps.check.outputs.id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHECK_ID: ${{ steps.check.outputs.id }}
+          CONCLUSION: ${{ steps.validate.outcome == 'success' && 'success' || 'failure' }}
+        run: |
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/check-runs/$CHECK_ID" \
+            -f status=completed -f conclusion="$CONCLUSION" > /dev/null

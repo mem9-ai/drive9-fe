@@ -10,7 +10,8 @@ full commit, Node/npm versions, build command and SHA-256 for every file are in
 `vendor/studio-build.json`. These files are reviewed and committed together.
 Netlify verifies the files, copies them under `site/studio/` and generates routing;
 it does not fetch `tidb.ai`, install its dependencies or need a private deploy key.
-There is no Git submodule or automatic cross-repository update in this workflow.
+There is no Git submodule. Automatic cross-repository publication is handled by the
+source repository workflow; Netlify only receives this public website checkout.
 
 To prepare a website checkout with Node 24.22.1:
 
@@ -25,7 +26,39 @@ trailing slash, credentials, or query string. Generated `site/studio/` and
 `site/_redirects` are ignored by Git. The homepage, downloads and documentation
 remain in `site/`; only the Console's static output is copied under `/studio/`.
 
-### Updating Studio
+### Automatic publication gate
+
+The source repository's **Publish Studio Console** workflow uses a dedicated GitHub App
+installed only on this repository, with Contents and Pull requests write plus Checks read. It updates the
+`automation/studio-console` branch, waits for the required check, and merges its artifact PR.
+The **Studio artifact** check in this repository independently validates checksums, exact
+source/build metadata, allowed public files, common credential markers, and website routes.
+Generated publication PRs may change only `vendor/studio/` and `vendor/studio-build.json`.
+The check has no deployment credentials and runs for every PR, including fork PRs.
+It uses `pull_request_target` and explicitly checks out the immutable trusted default-branch
+revision. It reads candidate Git blobs at the event's exact head SHA as data: it never
+checks out or executes candidate scripts/workflows. All bot-authored/updated PRs and the
+managed publication branch are restricted to artifact paths, including changes/deletions of
+validators and workflows. Human code PRs still run ordinary **Website tests** separately.
+The trusted workflow alone has Checks write, solely to report **Studio artifact** against
+the candidate head (the target event's own SHA is the default branch). The publishing App
+has Checks read and no Workflows permission; it cannot write this result or alter workflows.
+See GitHub's [trusted-event guidance](https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target).
+
+Before enabling the publisher, an administrator must require **Studio artifact** on main,
+from the GitHub Actions integration, require an up-to-date branch, and require a PR with
+zero mandatory human approvals. Enforce the rule for administrators too and add no App
+bypass. This lets a successful generated PR merge without a
+human click while pending/failed checks block it. These are GitHub settings; this workflow
+file alone does not enable protection. Confirm the live settings and an App-authored PR
+before declaring automatic publication operational.
+
+No private-source credential is available here. Provenance validation checks the declared
+source repository, full SHA, pinned toolchain/build command and all artifact hashes; it does
+not independently rebuild private source. Marker checks cannot prove a bundle secret-free.
+Review publication tooling and any deliberately public frontend literals accordingly.
+
+### Updating Studio manually
 
 Use an authorized local checkout of `mem9-ai/tidb.ai`, Node 24.22.1 and npm 11.6.2.
 Choose a reviewed full source commit. Export it into an empty directory so local

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { cp, mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -19,6 +20,9 @@ async function fixture(t) {
   const manifest = {
     repository: 'https://github.com/mem9-ai/tidb.ai',
     commit: 'a'.repeat(40),
+    node: '24.22.1',
+    npm: '11.6.2',
+    build: 'npm ci && npm run build:console -- --base=/studio/',
     files: await studioHashes(directory),
   };
   await writeFile(manifestPath, JSON.stringify(manifest));
@@ -87,4 +91,26 @@ test('maintenance import normalizes config, removes stale assets and rejects inv
 test('checked-in artifact passes integrity checks', async () => {
   await verifyStudioArtifact(fileURLToPath(new URL('../vendor/studio', import.meta.url)),
     fileURLToPath(new URL('../vendor/studio-build.json', import.meta.url)));
+});
+
+
+test('rejects wrong build provenance even when file checksums match', async t => {
+  const { directory, manifestPath, manifest } = await fixture(t);
+  for (const change of [{ repository: 'https://example.invalid/source' }, { node: '22' }, { npm: 'latest' }, { build: 'npm run build' }]) {
+    await writeFile(manifestPath, JSON.stringify({ ...manifest, ...change }));
+    await assert.rejects(verifyStudioArtifact(directory, manifestPath), /metadata|provenance/);
+  }
+});
+
+test('credential markers and inline source maps fail even with matching manifest hashes', async t => {
+  const { directory, manifestPath, manifest } = await fixture(t);
+  for (const marker of ['-----BEGIN PRIVATE KEY-----', `ghp_${'x'.repeat(36)}`, `github_pat_${'x'.repeat(30)}`, `AKIA${'A'.repeat(16)}`, '//# sourceMappingURL=data:application/json;base64,e30=']) {
+    await writeFile(join(directory, 'assets/app.js'), marker);
+    await writeFile(manifestPath, JSON.stringify({ ...manifest, files: { ...manifest.files, 'assets/app.js': createHash('sha256').update(marker).digest('hex') } }));
+    await assert.rejects(verifyStudioArtifact(directory, manifestPath), error => {
+      assert.match(error.message, /credential marker|source map/);
+      assert.ok(!error.message.includes(marker));
+      return true;
+    });
+  }
 });

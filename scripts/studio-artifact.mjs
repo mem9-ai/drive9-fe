@@ -15,7 +15,11 @@ export async function studioHashes(directory, prefix = '') {
     if (entry.isDirectory() && path === 'assets') {
       Object.assign(hashes, await studioHashes(directory, 'assets/'));
     } else if (entry.isFile() && /^(index\.html|config\.json|favicon\.svg|assets\/[\w.-]+\.(js|css|woff2))$/.test(path)) {
-      hashes[path] = createHash('sha256').update(await readFile(resolve(directory, path))).digest('hex');
+      const contents = await readFile(resolve(directory, path));
+      if (!path.endsWith('.woff2') && /(?:-----BEGIN (?:[A-Z]+ )?PRIVATE KEY-----|\bgh[pousr]_[A-Za-z0-9]{20,}|\bgithub_pat_[A-Za-z0-9_]{20,}|\b(?:AKIA|ASIA)[A-Z0-9]{16}\b|sourceMappingURL\s*=)/.test(contents.toString('utf8'))) {
+        throw new Error('Studio artifact contains a credential marker or source map reference.');
+      }
+      hashes[path] = createHash('sha256').update(contents).digest('hex');
     } else {
       throw new Error('Studio output contains an unexpected file, directory, or symlink.');
     }
@@ -28,6 +32,10 @@ export async function verifyStudioArtifact(directory, manifestPath) {
   if (!manifest || manifest.repository !== sourceRepository || !/^[a-f0-9]{40}$/.test(manifest.commit || '') ||
       !manifest.files || typeof manifest.files !== 'object') {
     throw new Error('Studio artifact source metadata is invalid.');
+  }
+  if (manifest.node !== '24.22.1' || manifest.npm !== '11.6.2' ||
+      manifest.build !== 'npm ci && npm run build:console -- --base=/studio/') {
+    throw new Error('Studio artifact toolchain/build provenance is invalid.');
   }
   const actual = await studioHashes(directory);
   if (!actual['index.html'] || !actual['config.json'] ||
