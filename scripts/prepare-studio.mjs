@@ -2,6 +2,7 @@ import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { isIP } from 'node:net';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { verifyStudioArtifact } from './studio-artifact.mjs';
 
 export function studioRedirects(apiOrigin) {
   const invalid = () => new Error('STUDIO_API_ORIGIN must be a public HTTPS origin without a path, credentials, or query.');
@@ -42,8 +43,9 @@ export async function prepareStudio({ consoleDirectory, siteDirectory, apiOrigin
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const root = fileURLToPath(new URL('../', import.meta.url));
   try {
+    await verifyStudioArtifact(resolve(root, 'vendor/studio'), resolve(root, 'vendor/studio-build.json'));
     await prepareStudio({
-      consoleDirectory: resolve(root, 'studio/dist/console'),
+      consoleDirectory: resolve(root, 'vendor/studio'),
       siteDirectory: resolve(root, 'site'),
       apiOrigin: process.env.STUDIO_API_ORIGIN,
     });

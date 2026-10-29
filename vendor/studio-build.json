@@ -1,0 +1,20 @@
+{
+  "repository": "https://github.com/mem9-ai/tidb.ai",
+  "commit": "69ea14208e3caf2e597a65aaa986167d8bd65bd0",
+  "node": "24.22.1",
+  "npm": "11.6.2",
+  "build": "npm ci && npm run build:console -- --base=/studio/",
+  "files": {
+    "assets/FileAnalysisPanel-BeklEYxr.js": "a0e377544fbb54df535f75bb8293ab9da9e130b99fdfbc9e4dfcb620bbc3327e",
+    "assets/FileAnalysisPanel-HnfcFPP3.css": "f10d2fc3ed1143a77c94ed5f7b5cb889b39b7b900409112b31881d48c4bea2a0",
+    "assets/FilePreviewPanel-CX1Ur0MF.js": "a83833ebca54d02fd155617ea4b916fb35eb355ec24b9d23ad613fc05ed90fa0",
+    "assets/Mantine.context-BD-hrtpW.js": "0f5be49fe440fa9624fa77a6f94872162b372ae6f221c714ce716d4a22119137",
+    "assets/WorkspaceSqlInput-ZyHqDXpz.js": "4deab07486eda77f8e3dd453bd96c922897e7602bcf0b83bc9fa68fb27a664da",
+    "assets/index-DIRKSRU8.js": "1903967f4bc49815efab8f1cb0a95a4b7ea5fd68c64bce12a671a186df73d345",
+    "assets/index-DMwT4_qe.css": "a069eb947859266500db81863d321291d63b36d8a9a486a4e7b7005a654f5057",
+    "assets/inter-latin-wght-normal-Dx4kXJAl.woff2": "3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62",
+    "config.json": "93c48845bef6c4778ea3aff1081c36ac8f4662dd107acdced73e67060aac8b3e",
+    "favicon.svg": "8b2b0827f55702048b500bd350f8c94f28e56190a2c659e7c0e7f7024cdca15c",
+    "index.html": "04913a0e9c55e860eef3e8abe8b8d2fa5785c015783dae2dff34fc6b2dde895b"
+  }
+}

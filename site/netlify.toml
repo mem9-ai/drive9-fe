@@ -2,7 +2,7 @@
 # Netlify will load this file from `site/`, but resolve build paths from the repo root.
 
 [build]
-  command = "npm ci --prefix studio && npm run build:console --prefix studio -- --base=/studio/ && node scripts/prepare-studio.mjs"
+  command = "node --test scripts/*.test.mjs && node scripts/prepare-studio.mjs"
   publish = "site"
 
 [build.environment]
