@@ -35,6 +35,15 @@ The **Studio artifact** check in this repository independently validates checksu
 source/build metadata, allowed public files, common credential markers, and website routes.
 Generated publication PRs may change only `vendor/studio/` and `vendor/studio-build.json`.
 The check has no deployment credentials and runs for every PR, including fork PRs.
+It uses `pull_request_target` and explicitly checks out the immutable trusted default-branch
+revision. It reads candidate Git blobs at the event's exact head SHA as data: it never
+checks out or executes candidate scripts/workflows. All bot-authored/updated PRs and the
+managed publication branch are restricted to artifact paths, including changes/deletions of
+validators and workflows. Human code PRs still run ordinary **Website tests** separately.
+The trusted workflow alone has Checks write, solely to report **Studio artifact** against
+the candidate head (the target event's own SHA is the default branch). The publishing App
+has Checks read and no Workflows permission; it cannot write this result or alter workflows.
+See GitHub's [trusted-event guidance](https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target).
 
 Before enabling the publisher, an administrator must require **Studio artifact** on main,
 from the GitHub Actions integration, require an up-to-date branch, and require a PR with
