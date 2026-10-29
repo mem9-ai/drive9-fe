@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/mem9-ai/tidb.ai",
-  "commit": "69ea14208e3caf2e597a65aaa986167d8bd65bd0",
+  "commit": "54fcd1cecb652cfff83b165ed48ed225da681816",
   "node": "24.22.1",
   "npm": "11.6.2",
   "build": "npm ci && npm run build:console -- --base=/studio/",
@@ -15,6 +15,6 @@
     "assets/inter-latin-wght-normal-Dx4kXJAl.woff2": "3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62",
     "config.json": "93c48845bef6c4778ea3aff1081c36ac8f4662dd107acdced73e67060aac8b3e",
     "favicon.svg": "8b2b0827f55702048b500bd350f8c94f28e56190a2c659e7c0e7f7024cdca15c",
-    "index.html": "04913a0e9c55e860eef3e8abe8b8d2fa5785c015783dae2dff34fc6b2dde895b"
+    "index.html": "5ccd4bec8d24be9ceaeef35297ad1b8439d79bc392b31a5442efd79d389817fa"
   }
 }
