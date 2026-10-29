@@ -15,7 +15,11 @@ export async function studioHashes(directory, prefix = '') {
     if (entry.isDirectory() && path === 'assets') {
       Object.assign(hashes, await studioHashes(directory, 'assets/'));
     } else if (entry.isFile() && /^(index\.html|config\.json|favicon\.svg|assets\/[\w.-]+\.(js|css|woff2))$/.test(path)) {
-      hashes[path] = createHash('sha256').update(await readFile(resolve(directory, path))).digest('hex');
+      const contents = await readFile(resolve(directory, path));
+      if (!path.endsWith('.woff2') && /(?:-----BEGIN (?:[A-Z]+ )?PRIVATE KEY-----|\bgh[pousr]_[A-Za-z0-9]{20,}|\bgithub_pat_[A-Za-z0-9_]{20,}|\b(?:AKIA|ASIA)[A-Z0-9]{16}\b|sourceMappingURL\s*=)/.test(contents.toString('utf8'))) {
+        throw new Error('Studio artifact contains a credential marker or source map reference.');
+      }
+      hashes[path] = createHash('sha256').update(contents).digest('hex');
     } else {
       throw new Error('Studio output contains an unexpected file, directory, or symlink.');
     }
@@ -38,13 +42,6 @@ export async function verifyStudioArtifact(directory, manifestPath) {
       Object.keys(actual).length !== Object.keys(manifest.files).length ||
       Object.entries(actual).some(([path, hash]) => manifest.files[path] !== hash)) {
     throw new Error('Studio artifact checksums do not match.');
-  }
-  for (const path of Object.keys(actual)) {
-    if (path.endsWith('.woff2')) continue;
-    const contents = await readFile(resolve(directory, path), 'utf8');
-    if (/(?:-----BEGIN (?:[A-Z]+ )?PRIVATE KEY-----|\bgh[pousr]_[A-Za-z0-9]{20,}|\bgithub_pat_[A-Za-z0-9_]{20,}|\b(?:AKIA|ASIA)[A-Z0-9]{16}\b|sourceMappingURL\s*=)/.test(contents)) {
-      throw new Error('Studio artifact contains a credential marker or source map reference.');
-    }
   }
   if ((await readFile(resolve(directory, 'config.json'), 'utf8')) !== studioConfig) {
     throw new Error('Studio artifact must use the same-origin /studio configuration.');

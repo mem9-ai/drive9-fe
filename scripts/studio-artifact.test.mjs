@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { cp, mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -105,7 +106,7 @@ test('credential markers and inline source maps fail even with matching manifest
   const { directory, manifestPath, manifest } = await fixture(t);
   for (const marker of ['-----BEGIN PRIVATE KEY-----', `ghp_${'x'.repeat(36)}`, `github_pat_${'x'.repeat(30)}`, `AKIA${'A'.repeat(16)}`, '//# sourceMappingURL=data:application/json;base64,e30=']) {
     await writeFile(join(directory, 'assets/app.js'), marker);
-    await writeFile(manifestPath, JSON.stringify({ ...manifest, files: await studioHashes(directory) }));
+    await writeFile(manifestPath, JSON.stringify({ ...manifest, files: { ...manifest.files, 'assets/app.js': createHash('sha256').update(marker).digest('hex') } }));
     await assert.rejects(verifyStudioArtifact(directory, manifestPath), error => {
       assert.match(error.message, /credential marker|source map/);
       assert.ok(!error.message.includes(marker));
