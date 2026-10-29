@@ -82,7 +82,7 @@ keep the Console's current public API contract:
 
 | Browser path | Destination |
 | --- | --- |
-| `/studio` | Redirect to `/studio/` |
+| `/studio`, `/studio/` | Console entry, using Netlify's directory handling |
 | `/studio/assets/*` | Built static files |
 | `/studio/*` | Console entry, only when no file matches |
 | `/studio/config.json` | Studio configuration, `apiOrigin: ""`, `apiPathPrefix: "/studio"` |
@@ -92,6 +92,9 @@ keep the Console's current public API contract:
 All Studio routes stay under `/studio`; website root API/config paths are untouched.
 There is no global SPA fallback: existing pages and unknown non-Studio paths
 retain their original behavior. API errors must remain API errors rather than HTML.
+Do not add a redirect that only adds/removes a trailing slash: Netlify
+[matches both forms](https://docs.netlify.com/manage/routing/redirects/redirect-options/#trailing-slash),
+which makes such a forced redirect loop back to itself.
 
 For TiDB Cloud SSO, register the callback
 `https://drive9.ai/studio/api/auth/tidbcloud/callback` and set the backend's post-login
