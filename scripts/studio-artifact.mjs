@@ -29,11 +29,22 @@ export async function verifyStudioArtifact(directory, manifestPath) {
       !manifest.files || typeof manifest.files !== 'object') {
     throw new Error('Studio artifact source metadata is invalid.');
   }
+  if (manifest.node !== '24.22.1' || manifest.npm !== '11.6.2' ||
+      manifest.build !== 'npm ci && npm run build:console -- --base=/studio/') {
+    throw new Error('Studio artifact toolchain/build provenance is invalid.');
+  }
   const actual = await studioHashes(directory);
   if (!actual['index.html'] || !actual['config.json'] ||
       Object.keys(actual).length !== Object.keys(manifest.files).length ||
       Object.entries(actual).some(([path, hash]) => manifest.files[path] !== hash)) {
     throw new Error('Studio artifact checksums do not match.');
+  }
+  for (const path of Object.keys(actual)) {
+    if (path.endsWith('.woff2')) continue;
+    const contents = await readFile(resolve(directory, path), 'utf8');
+    if (/(?:-----BEGIN (?:[A-Z]+ )?PRIVATE KEY-----|\bgh[pousr]_[A-Za-z0-9]{20,}|\bgithub_pat_[A-Za-z0-9_]{20,}|\b(?:AKIA|ASIA)[A-Z0-9]{16}\b|sourceMappingURL\s*=)/.test(contents)) {
+      throw new Error('Studio artifact contains a credential marker or source map reference.');
+    }
   }
   if ((await readFile(resolve(directory, 'config.json'), 'utf8')) !== studioConfig) {
     throw new Error('Studio artifact must use the same-origin /studio configuration.');

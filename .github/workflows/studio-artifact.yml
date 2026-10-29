@@ -1,0 +1,47 @@
+name: Studio artifact validation
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  merge_group:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: studio-artifact-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Studio artifact
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.22.1
+          package-manager-cache: false
+      - name: Restrict generated publication changes
+        if: github.event_name == 'pull_request' && github.head_ref == 'automation/studio-console'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { execFileSync } from 'node:child_process';
+          const { BASE_SHA, HEAD_SHA } = process.env;
+          for (const sha of [BASE_SHA, HEAD_SHA]) assert.match(sha, /^[a-f0-9]{40}$/);
+          const files = execFileSync('git', ['diff', '--name-only', '-z', BASE_SHA, HEAD_SHA], { encoding: 'utf8' }).split('\0').filter(Boolean);
+          assert.ok(files.length > 0, 'Empty publication.');
+          assert.ok(files.every(path => path.startsWith('vendor/studio/') || path === 'vendor/studio-build.json'), 'Publication may change only Console artifacts and provenance.');
+          JS
+      - name: Validate artifact provenance, public-file policy and routes
+        run: node --test scripts/*.test.mjs tests/*.test.mjs
