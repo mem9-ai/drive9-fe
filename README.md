@@ -15,7 +15,7 @@ There is no Git submodule or automatic cross-repository update in this workflow.
 To prepare a website checkout with Node 24.22.1:
 
 ```sh
-node --test scripts/*.test.mjs
+node --test scripts/*.test.mjs tests/*.test.mjs
 STUDIO_API_ORIGIN=https://api.example.invalid node scripts/prepare-studio.mjs
 ```
 
@@ -42,7 +42,7 @@ git -C /path/to/tidb.ai archive "$studio_revision" | tar -x -C "$studio_source"
   env -i HOME="$HOME" PATH="$PATH" npm run build:console -- --base=/studio/
 )
 node scripts/studio-artifact.mjs "$studio_source/dist/console" "$studio_revision"
-node --test scripts/*.test.mjs
+node --test scripts/*.test.mjs tests/*.test.mjs
 ```
 
 For an update, set `studio_revision` to the newly reviewed full commit instead.
@@ -57,9 +57,16 @@ source manifest lives outside `site/`. Remove the temporary export when finished
 
 ## Netlify
 
-Keep the package directory set to `site`, with the base directory unset. The
-checked-in `site/netlify.toml` runs tests and preparation from the repository root
-and publishes `site`. Only access to this website repository is needed.
+Keep the Netlify project's **base directory set to `site`**. The checked-in
+`site/netlify.toml` runs tests and preparation via `../scripts/` and publishes
+`.` (the current `site` directory). Publish paths are relative to the base,
+so setting publish to `site` would incorrectly select `site/site`.
+Only access to this website repository is needed.
+
+The `tests/netlify-build.test.mjs` integration test executes the configured command
+from `site` in a temporary checkout and checks the published output and missing
+origin failure. It lives outside the build's `scripts/*.test.mjs` glob to avoid
+recursively running itself.
 
 Set `STUDIO_API_ORIGIN` in the Netlify project's environment variables, with the
 Builds scope and the deploy contexts you intend to publish (Production for the
