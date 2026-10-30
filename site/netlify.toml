@@ -2,6 +2,7 @@
 # Build commands and the publish directory are relative to that directory.
 
 [build]
+  ignore = "node ./../scripts/netlify-ignore.mjs"
   command = "node --test ../scripts/*.test.mjs && node ../scripts/prepare-studio.mjs"
   publish = "."
 
