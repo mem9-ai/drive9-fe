@@ -96,6 +96,16 @@ Keep the Netlify project's **base directory set to `site`**. The checked-in
 so setting publish to `site` would incorrectly select `site/site`.
 Only access to this website repository is needed.
 
+The custom `build.ignore` command checks `site/`, `vendor/`, `scripts/` and `tests/`
+from the repository root. Netlify's default comparison only covers its `site/`
+base, so it can skip a Console-only artifact update outside that directory.
+Exit 0 skips unchanged inputs; exit 1 builds. Missing/invalid prior commits,
+unavailable shallow history and Git errors conservatively build. Documentation-only
+changes can skip. Keep this input list aligned with future build dependencies.
+`tests/netlify-ignore.test.mjs` runs the configured command from `site/` against
+isolated Git history, including artifact-only updates and deletions.
+See [Netlify's ignore-build contract](https://docs.netlify.com/build/configure-builds/ignore-builds/).
+
 The `tests/netlify-build.test.mjs` integration test executes the configured command
 from `site` in a temporary checkout and checks the published output and missing
 origin failure. It lives outside the build's `scripts/*.test.mjs` glob to avoid
