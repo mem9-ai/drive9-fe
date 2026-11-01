@@ -1,22 +1,24 @@
 {
   "repository": "https://github.com/mem9-ai/tidb.ai",
-  "commit": "e16e3e01b723839e42115c4f4e2e8cb80efbf814",
+  "commit": "07cd1e8c789dee17b25d1a806ce8d39b2fa4b9c3",
   "node": "24.22.1",
   "npm": "11.6.2",
   "build": "npm ci && npm run build:console -- --base=/studio/",
   "files": {
     "assets/FileAnalysisPanel-B3ENyFyH.css": "2051624448b93021fdde27a6db5a9a1e2535d2bb71c9da49f77aba1c923fe01b",
-    "assets/FileAnalysisPanel-Bopuc2_F.js": "c5c42db57bd4751aa612b4b3f33b584ea5d022f6912458e3245181ce9a661710",
-    "assets/FileExportDialog-BYcByt8d.js": "00c78eb7e4d4799e60d3e6e564c73ce04c037d0f1fb7fcafef0dc8bb16613879",
-    "assets/FilePreviewPanel-Cc3xBSPw.js": "11fbc5b51784b2ad341004fb7061e653f7987f79f35767ef782e93d139e4ebb9",
+    "assets/FileAnalysisPanel-BYSG5EjP.js": "ca7d01c14b701458aec8d5c0a57477535726c56785be564b9c2c16137e04fc39",
+    "assets/FileExportDialog-CzT3E6D9.js": "467b416946ca1a10c2038e65053a7ab9aceadb1b91fb582a370f4a9de5b8cfb5",
+    "assets/FilePreviewPanel-CIhz2tuj.js": "d895ca0440ece81840688e175e098824f807d29ab14f374af41f85f24b7d6efd",
     "assets/Mantine.context-BD-hrtpW.js": "0f5be49fe440fa9624fa77a6f94872162b372ae6f221c714ce716d4a22119137",
-    "assets/WorkspaceSqlInput-D-QAb62G.js": "b063181885ad066166a288129cb37466c9598607c3e4158cfff66c9eadc67ec7",
-    "assets/index-DGyrvqH0.css": "ff8aad3c80e5d979f324176deb3e5b5ce38f5e3f5faee939837e9805e39992c9",
-    "assets/index-DTl3VF7I.js": "6bf21d16f91eab1d6f17f1804368ab90d0dc638c208ca2cbeef2672680058b72",
+    "assets/MermaidDiagram-CLAWMnJg.js": "bacad40a8389fa39ab3dff0d1725d5b4f7585cf79e3909ce5b354e4fc6ace140",
+    "assets/MermaidFrame-Dp39ubYu.js": "21c8927c3f313a9da07e399a3672343a3672e8e7147de34af427f865bc56dcca",
+    "assets/WorkspaceSqlInput-DfTPkoFk.js": "b0d95b3c03d4556dace7c8d46fe9664ab0cbdda2b0fafa2989de40769523b549",
+    "assets/index-Br9IiHeo.js": "3ae41389f4ce89d2cd38d14d3580c8d8282e4ba3594391db13ab878e8384b845",
+    "assets/index-CleT6bKG.css": "424add0c4d9397188414514c38aaaf89eacc13a8e9d669e275e16bd4d3a17377",
     "assets/inter-latin-wght-normal-Dx4kXJAl.woff2": "3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62",
     "assets/snapshot-download-DC6C-wy2.js": "f339a0265e320cb2faefb5d4fe7eb261844bd43ed7b7ccaac47c7f1af61ecd24",
     "config.json": "93c48845bef6c4778ea3aff1081c36ac8f4662dd107acdced73e67060aac8b3e",
     "favicon.svg": "8b2b0827f55702048b500bd350f8c94f28e56190a2c659e7c0e7f7024cdca15c",
-    "index.html": "a61cc373d3278d40be190e84141fd37d96e535cace8092b1644672da149e1dd9"
+    "index.html": "3fb6a78f1842a91e6df1e651171df5396bc7f6b18829cd3d702bf193092e15ff"
   }
 }
