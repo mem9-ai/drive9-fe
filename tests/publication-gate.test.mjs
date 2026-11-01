@@ -29,6 +29,7 @@ test('trusted validator accepts artifacts and rejects empty, unrelated and renam
   await assert.rejects(gate(), /Empty publication/);
   const index = join(directory, 'vendor/studio/index.html');
   await writeFile(index, (await readFile(index, 'utf8')) + '\n<!-- changed artifact -->');
+  await writeFile(join(directory, 'vendor/studio/assets/workspace-agent.mjs'), 'export const agent = true;');
   const manifestPath = join(directory, 'vendor/studio-build.json');
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
   manifest.files = await studioHashes(join(directory, 'vendor/studio'));

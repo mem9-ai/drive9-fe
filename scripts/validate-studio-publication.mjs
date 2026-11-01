@@ -24,7 +24,7 @@ export async function validateStudioPublication(repository, base, head, artifact
   try {
     const entries = git('ls-tree', '-rz', '--full-tree', head, '--', 'vendor/studio', 'vendor/studio-build.json').toString().split('\0').filter(Boolean);
     for (const entry of entries) {
-      const match = entry.match(/^100644 blob ([a-f0-9]{40})\t(vendor\/studio-build\.json|vendor\/studio\/(?:index\.html|config\.json|favicon\.svg|assets\/[\w.-]+\.(?:js|css|woff2)))$/);
+      const match = entry.match(/^100644 blob ([a-f0-9]{40})\t(vendor\/studio-build\.json|vendor\/studio\/(?:index\.html|config\.json|favicon\.svg|assets\/[\w.-]+\.(?:js|mjs|css|woff2)))$/);
       assert.ok(match, 'Candidate contains an unexpected artifact path or Git mode.');
       const [, object, path] = match;
       const destination = join(temporary, path);
