@@ -1,22 +1,22 @@
 {
   "repository": "https://github.com/mem9-ai/tidb.ai",
-  "commit": "7c4455fbb4ef1d0a6e85d4c156232027169b17e0",
+  "commit": "e16e3e01b723839e42115c4f4e2e8cb80efbf814",
   "node": "24.22.1",
   "npm": "11.6.2",
   "build": "npm ci && npm run build:console -- --base=/studio/",
   "files": {
     "assets/FileAnalysisPanel-B3ENyFyH.css": "2051624448b93021fdde27a6db5a9a1e2535d2bb71c9da49f77aba1c923fe01b",
-    "assets/FileAnalysisPanel-CBFZ_sUM.js": "8fe9aa9f4c44ae205dd14f14d0515579f7364ca4eb9cfa89bda524a9317c7075",
-    "assets/FileExportDialog-CZZM5ai-.js": "ed7d09ec64b95b67a05a29918b7c88f9b7e772720e7dffc45bbc60a7c67adcde",
-    "assets/FilePreviewPanel-6nl2iAeA.js": "cf115f6ae00184fd04324962f37d646dc610a3987eaaf42aae793c9e05f518f5",
+    "assets/FileAnalysisPanel-Bopuc2_F.js": "c5c42db57bd4751aa612b4b3f33b584ea5d022f6912458e3245181ce9a661710",
+    "assets/FileExportDialog-BYcByt8d.js": "00c78eb7e4d4799e60d3e6e564c73ce04c037d0f1fb7fcafef0dc8bb16613879",
+    "assets/FilePreviewPanel-Cc3xBSPw.js": "11fbc5b51784b2ad341004fb7061e653f7987f79f35767ef782e93d139e4ebb9",
     "assets/Mantine.context-BD-hrtpW.js": "0f5be49fe440fa9624fa77a6f94872162b372ae6f221c714ce716d4a22119137",
-    "assets/WorkspaceSqlInput-CoM4mzDO.js": "9bd46f28a313f730dc73acc34593882abd82efe4e262c7bd6f6fdf8e461a52f5",
-    "assets/index-CxcVvb0D.js": "dacf464680ea84475064ef085d0ddc3a9a6838add3e27baf8356bafd91654316",
-    "assets/index-DRZFHya5.css": "bacd1bfae9675b1395a672c7dfecc58cfea0569b0415b8a2de607991681cff3e",
+    "assets/WorkspaceSqlInput-D-QAb62G.js": "b063181885ad066166a288129cb37466c9598607c3e4158cfff66c9eadc67ec7",
+    "assets/index-DGyrvqH0.css": "ff8aad3c80e5d979f324176deb3e5b5ce38f5e3f5faee939837e9805e39992c9",
+    "assets/index-DTl3VF7I.js": "6bf21d16f91eab1d6f17f1804368ab90d0dc638c208ca2cbeef2672680058b72",
     "assets/inter-latin-wght-normal-Dx4kXJAl.woff2": "3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62",
     "assets/snapshot-download-DC6C-wy2.js": "f339a0265e320cb2faefb5d4fe7eb261844bd43ed7b7ccaac47c7f1af61ecd24",
     "config.json": "93c48845bef6c4778ea3aff1081c36ac8f4662dd107acdced73e67060aac8b3e",
     "favicon.svg": "8b2b0827f55702048b500bd350f8c94f28e56190a2c659e7c0e7f7024cdca15c",
-    "index.html": "3394701a46cf38b55ff7960e85f99342493f3a0072c07991679c1808ff79e174"
+    "index.html": "a61cc373d3278d40be190e84141fd37d96e535cace8092b1644672da149e1dd9"
   }
 }
