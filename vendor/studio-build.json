@@ -1,22 +1,22 @@
 {
   "repository": "https://github.com/mem9-ai/tidb.ai",
-  "commit": "bed41d81d72d9ba863e068c8c389de473a4e457e",
+  "commit": "c29b5b7c72a4d4d675b3cb60ace9fb8412e60f15",
   "node": "24.22.1",
   "npm": "11.6.2",
   "build": "npm ci && npm run build:console -- --base=/studio/",
   "files": {
     "assets/FileAnalysisPanel-B3ENyFyH.css": "2051624448b93021fdde27a6db5a9a1e2535d2bb71c9da49f77aba1c923fe01b",
-    "assets/FileAnalysisPanel-DgM9qDAm.js": "d4b14d1c2a1446dbafec09976f678eadfab83ae4256c755410d7ac3af0395cee",
-    "assets/FileExportDialog-R6KSHKYR.js": "92c5fa805d1cff9c939e39e19f8ac20f43b12c071341a64dc682f80e9d4f7a7f",
-    "assets/FilePreviewPanel-C55A4SCp.js": "f34cff8bfbd89a5e40c6f1a25dd0d21b04cf89b97f093b59ab89b9d4e1bba4e8",
+    "assets/FileAnalysisPanel-BdtdtiEE.js": "28c22f3c5fd286cb6ceeca36ca72a2300745a0668e14d79abd2f2fd1874a7d9c",
+    "assets/FileExportDialog-jiy-CYjm.js": "d4400b0f8ed63e684e94bce4afeecb8e9db6f3371d9ec28f6425a471e6ca9cf8",
+    "assets/FilePreviewPanel-BjZpwpSH.js": "a351cc91393c6a2a55754ee2af147213a408aef2f58341386c2bbb134c228b86",
     "assets/Mantine.context-BD-hrtpW.js": "0f5be49fe440fa9624fa77a6f94872162b372ae6f221c714ce716d4a22119137",
-    "assets/WorkspaceSqlInput-BkgkbpVi.js": "51b8b9b5cdc0eb753b794079ff0c62ab6d64c14656bcdfd7a50c0b0fc4087b34",
+    "assets/WorkspaceSqlInput-DnlHs1FD.js": "0aecd9c0626e9348c68c71e9d86ba06a24eeb0d9817ce2134f2d5c1fa5c9d7db",
     "assets/index-2MxugEwv.css": "345e8ff4101192a015c5e2e1e844da54d372dae86a12580a03ff71c89252dce5",
-    "assets/index-SZ7ElCU1.js": "297059b72d2e5bab24fac5cc76915a1b72f8d038186facfb55d3a6eacd4689d6",
+    "assets/index-BzKlsmJD.js": "190dbfea44ca71176360f6940aaaf2f64026d7488aa63eb5d040937553f1559e",
     "assets/inter-latin-wght-normal-Dx4kXJAl.woff2": "3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62",
     "assets/snapshot-download-C4GOTHe9.js": "065f3127e750bc4d779e928fb79054a51c45f1173534586f9869654ff13ebb11",
     "config.json": "93c48845bef6c4778ea3aff1081c36ac8f4662dd107acdced73e67060aac8b3e",
     "favicon.svg": "8b2b0827f55702048b500bd350f8c94f28e56190a2c659e7c0e7f7024cdca15c",
-    "index.html": "937667138cfbf8481b56e227b35060f57cb23666f65ff44a717c4442cec09a3d"
+    "index.html": "8679de3f55f91098407da4db41aa671af6332d5ee850aaa62c91320fff7b4951"
   }
 }
