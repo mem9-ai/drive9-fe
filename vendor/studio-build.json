@@ -1,24 +1,27 @@
 {
   "repository": "https://github.com/mem9-ai/tidb.ai",
-  "commit": "07cd1e8c789dee17b25d1a806ce8d39b2fa4b9c3",
+  "commit": "3d54b0c82b15ce1c95f72115770bae06182166a4",
   "node": "24.22.1",
   "npm": "11.6.2",
   "build": "npm ci && npm run build:console -- --base=/studio/",
   "files": {
     "assets/FileAnalysisPanel-B3ENyFyH.css": "2051624448b93021fdde27a6db5a9a1e2535d2bb71c9da49f77aba1c923fe01b",
-    "assets/FileAnalysisPanel-BYSG5EjP.js": "ca7d01c14b701458aec8d5c0a57477535726c56785be564b9c2c16137e04fc39",
-    "assets/FileExportDialog-CzT3E6D9.js": "467b416946ca1a10c2038e65053a7ab9aceadb1b91fb582a370f4a9de5b8cfb5",
-    "assets/FilePreviewPanel-CIhz2tuj.js": "d895ca0440ece81840688e175e098824f807d29ab14f374af41f85f24b7d6efd",
-    "assets/Mantine.context-BD-hrtpW.js": "0f5be49fe440fa9624fa77a6f94872162b372ae6f221c714ce716d4a22119137",
-    "assets/MermaidDiagram-CLAWMnJg.js": "bacad40a8389fa39ab3dff0d1725d5b4f7585cf79e3909ce5b354e4fc6ace140",
+    "assets/FileAnalysisPanel-BXvsQPtV.js": "03c16160fea48695c7523523ce10b65a472bf46b5a6fcd00853e3b7a3b7fa97f",
+    "assets/FileExportDialog-NUuF0KtK.js": "6fd5b8e19136345997b73135763aa6a4dd6c3e0d72c91fe32b3a44b276b3c996",
+    "assets/FilePreviewPanel-By2_9I6e.js": "a35bac20d78ce72c67410a48e084186ce30f086b3a57c671b7b0cf692d58e366",
+    "assets/HtmlPreview-dv4vY6Hd.js": "ce60f2289492699cd4f5bb4e301ced34717524f01c4ce50735c302e22d3b68e6",
+    "assets/Mantine.context-C-jjSOAL.js": "3bfe92e710696ff2718db150f26f07ad5b76959d90a54efaca7a8e4ff685cc8e",
+    "assets/MermaidDiagram-BSzXlH3z.js": "7c4da934078b1b622716b1abcc1d094e5fdc4bd0c40c46715ae8a72c988e9ed1",
     "assets/MermaidFrame-Dp39ubYu.js": "21c8927c3f313a9da07e399a3672343a3672e8e7147de34af427f865bc56dcca",
-    "assets/WorkspaceSqlInput-DfTPkoFk.js": "b0d95b3c03d4556dace7c8d46fe9664ab0cbdda2b0fafa2989de40769523b549",
-    "assets/index-Br9IiHeo.js": "3ae41389f4ce89d2cd38d14d3580c8d8282e4ba3594391db13ab878e8384b845",
-    "assets/index-CleT6bKG.css": "424add0c4d9397188414514c38aaaf89eacc13a8e9d669e275e16bd4d3a17377",
+    "assets/Text-CT9KZoAa.js": "cd3129561f7cae7e39b48ec62cbd2246cd212ca9b03f89e6dcfa775bfda069c3",
+    "assets/WorkspaceSqlInput-wCfUrW-0.js": "4aa3c47a8eaee2e3c92e648f4d06eef949f3a37dfb017468f035a68b7e4b9058",
+    "assets/index-BGugytpN.css": "7e6c21381aa5df5f892c1042b2d644425ded3dac7680354b77b8625ca0a892e5",
+    "assets/index-DVTt34m6.js": "d7a3c5d61f90afcfc5c716901c57758ae57f1605e0ffcfaaaa7f71d2fcbf4277",
     "assets/inter-latin-wght-normal-Dx4kXJAl.woff2": "3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62",
-    "assets/snapshot-download-DC6C-wy2.js": "f339a0265e320cb2faefb5d4fe7eb261844bd43ed7b7ccaac47c7f1af61ecd24",
+    "assets/snapshot-download-CX_aurqP.js": "381e9e23aa3d0c658c04096225fe845c3068ecefab89d5c4e3d0a229f4de7732",
+    "assets/use-media-query-CRLr2KOV.js": "f39c5e6aa21f72fb08d8b34db2628bb4482d4739c9f05e79fc7f9817dd375741",
     "config.json": "93c48845bef6c4778ea3aff1081c36ac8f4662dd107acdced73e67060aac8b3e",
     "favicon.svg": "8b2b0827f55702048b500bd350f8c94f28e56190a2c659e7c0e7f7024cdca15c",
-    "index.html": "3fb6a78f1842a91e6df1e651171df5396bc7f6b18829cd3d702bf193092e15ff"
+    "index.html": "24000fcc778f0d272c1507c8f43382e5a5f6471bc546640c6c76a074d44f0a15"
   }
 }
