@@ -29,6 +29,15 @@ async function fixture(t) {
   return { root, directory, manifestPath, manifest };
 }
 
+test('agent modules are accepted as checked public assets and scanned for secrets', async t => {
+  const { directory } = await fixture(t);
+  const module = join(directory, 'assets/workspace-agent.mjs');
+  await writeFile(module, 'export const agent = true;');
+  assert.match((await studioHashes(directory))['assets/workspace-agent.mjs'], /^[a-f0-9]{64}$/);
+  await writeFile(module, '//# sourceMappingURL=workspace-agent.mjs.map');
+  await assert.rejects(studioHashes(directory), /source map/);
+});
+
 test('valid artifact verifies; modified, missing and extra assets fail', async t => {
   const { directory, manifestPath } = await fixture(t);
   await verifyStudioArtifact(directory, manifestPath);

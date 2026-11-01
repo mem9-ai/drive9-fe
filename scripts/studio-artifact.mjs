@@ -14,7 +14,7 @@ export async function studioHashes(directory, prefix = '') {
     const path = prefix + entry.name;
     if (entry.isDirectory() && path === 'assets') {
       Object.assign(hashes, await studioHashes(directory, 'assets/'));
-    } else if (entry.isFile() && /^(index\.html|config\.json|favicon\.svg|assets\/[\w.-]+\.(js|css|woff2))$/.test(path)) {
+    } else if (entry.isFile() && /^(index\.html|config\.json|favicon\.svg|assets\/[\w.-]+\.(js|mjs|css|woff2))$/.test(path)) {
       const contents = await readFile(resolve(directory, path));
       if (!path.endsWith('.woff2') && /(?:-----BEGIN (?:[A-Z]+ )?PRIVATE KEY-----|\bgh[pousr]_[A-Za-z0-9]{20,}|\bgithub_pat_[A-Za-z0-9_]{20,}|\b(?:AKIA|ASIA)[A-Z0-9]{16}\b|sourceMappingURL\s*=)/.test(contents.toString('utf8'))) {
         throw new Error('Studio artifact contains a credential marker or source map reference.');
