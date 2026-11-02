@@ -57,7 +57,9 @@ fs.writeFileSync(args[args.indexOf('-o') + 1], ${JSON.stringify(payload)});
     let error;
     try {
       await exec('/bin/sh', [new URL('install.sh', site).pathname], {
-        env: { ...process.env, PATH: `${join(root, 'tools')}:${process.env.PATH}`, HOME: join(root, 'home'),
+        // The Netlify build test restricts its own PATH to Node. This shell
+        // fixture also needs standard Unix utilities, with our mocks first.
+        env: { ...process.env, PATH: `${join(root, 'tools')}:/usr/bin:/bin`, HOME: join(root, 'home'),
           TMPDIR: join(root, 'tmp'), DRIVE9_INSTALL_DIR: join(root, 'install') },
         timeout: 10_000,
       });
