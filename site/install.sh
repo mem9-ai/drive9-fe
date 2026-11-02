@@ -4,7 +4,7 @@ set -e
 # drive9 installer
 # Usage: curl -fsSL https://drive9.ai/install.sh | sh
 
-BASE_URL="https://drive9.ai"
+BASE_URL="https://releases.drive9.ai/latest"
 API_URL="https://api.drive9.ai"
 DEFAULT_INSTALL_DIR="/usr/local/bin"
 INSTALL_DIR=""
@@ -68,7 +68,7 @@ download_quiet() {
 
 fetch_version() {
   LATEST_VERSION=""
-  VERSION_URL="${BASE_URL}/releases/version"
+  VERSION_URL="${BASE_URL}/version"
   if command -v curl > /dev/null 2>&1; then
     LATEST_VERSION=$(curl -fsSL "$VERSION_URL" 2>/dev/null | tr -d '[:space:]') || true
   elif command -v wget > /dev/null 2>&1; then
@@ -180,7 +180,7 @@ main() {
   else
     info "Downloading drive9..."
   fi
-  if ! download "${BASE_URL}/releases/drive9-${OS}-${ARCH}" "$TMP_DIR/drive9"; then
+  if ! download "${BASE_URL}/drive9-${OS}-${ARCH}" "$TMP_DIR/drive9"; then
     error "No pre-built binary available for ${OS}/${ARCH}.\n  Available: linux/amd64, linux/arm64, darwin/arm64, darwin/amd64\n  Visit https://drive9.ai for more info."
   fi
   chmod +x "$TMP_DIR/drive9"

@@ -19,3 +19,11 @@
   for = "/studio/index.html"
   [headers.values]
     Cache-Control = "no-cache"
+
+# Preserve installed CLIs and old download links. Force bypasses checked-in
+# site/releases files so metadata and binaries all come from the same origin.
+[[redirects]]
+  from = "/releases/*"
+  to = "https://releases.drive9.ai/latest/:splat"
+  status = 302
+  force = true

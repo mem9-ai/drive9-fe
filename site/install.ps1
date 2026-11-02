@@ -27,7 +27,7 @@ if ($PSVersionTable.PSVersion.Major -lt 6) {
     }
 }
 
-$BaseUrl = "https://drive9.ai"
+$BaseUrl = "https://releases.drive9.ai/latest"
 $ApiUrl = "https://api.drive9.ai"
 $localAppData = [Environment]::GetFolderPath("LocalApplicationData")
 if ([string]::IsNullOrWhiteSpace($localAppData)) {
@@ -83,7 +83,7 @@ function Invoke-Download($Url, $OutputPath) {
 }
 
 function Get-LatestVersion() {
-    $versionUrl = "$BaseUrl/releases/version"
+    $versionUrl = "$BaseUrl/version"
 
     try {
         if ($PSVersionTable.PSVersion.Major -lt 6) {
@@ -97,7 +97,7 @@ function Get-LatestVersion() {
 }
 
 function Get-ReleaseChecksums() {
-    $checksumsUrl = "$BaseUrl/releases/checksums.txt"
+    $checksumsUrl = "$BaseUrl/checksums.txt"
 
     try {
         if ($PSVersionTable.PSVersion.Major -lt 6) {
@@ -298,7 +298,7 @@ if ([string]::IsNullOrWhiteSpace($tempDir)) {
     $tempDir = [System.IO.Path]::GetTempPath()
 }
 $tempFile = Join-Path $tempDir ("drive9-" + [System.Guid]::NewGuid().ToString("N") + ".exe")
-$downloadUrl = "$BaseUrl/releases/$artifactName"
+$downloadUrl = "$BaseUrl/$artifactName"
 $checksums = Get-ReleaseChecksums
 
 if ($latestVersion) {
