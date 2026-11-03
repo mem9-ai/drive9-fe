@@ -30,6 +30,8 @@ test('trusted validator accepts artifacts and rejects empty, unrelated and renam
   const index = join(directory, 'vendor/studio/index.html');
   await writeFile(index, (await readFile(index, 'utf8')) + '\n<!-- changed artifact -->');
   await writeFile(join(directory, 'vendor/studio/assets/workspace-agent.mjs'), 'export const agent = true;');
+  await mkdir(join(directory, 'vendor/studio/skills/drive9-workspace'), { recursive: true });
+  await writeFile(join(directory, 'vendor/studio/skills/drive9-workspace/SKILL.md'), '# Workspace skill\n');
   const manifestPath = join(directory, 'vendor/studio-build.json');
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
   manifest.files = await studioHashes(join(directory, 'vendor/studio'));
@@ -43,6 +45,15 @@ test('trusted validator accepts artifacts and rejects empty, unrelated and renam
   await rename(index, join(directory, 'outside.html'));
   commit();
   await assert.rejects(gate(), /only Console/);
+});
+
+test('trusted validator rejects any additional skill file', async t => {
+  const { directory, commit, gate } = await fixture(t);
+  const folder = join(directory, 'vendor/studio/skills/drive9-workspace');
+  await mkdir(folder, { recursive: true });
+  await writeFile(join(folder, 'unexpected.md'), 'not allowed');
+  commit();
+  await assert.rejects(gate(), /artifact path or Git mode/);
 });
 
 test('candidate cannot modify or delete the workflow or trusted validator', async t => {

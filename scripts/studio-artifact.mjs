@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -12,10 +12,17 @@ export async function studioHashes(directory, prefix = '') {
     .sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
   for (const entry of entries) {
     const path = prefix + entry.name;
-    if (entry.isDirectory() && path === 'assets') {
-      Object.assign(hashes, await studioHashes(directory, 'assets/'));
-    } else if (entry.isFile() && /^(index\.html|config\.json|favicon\.svg|assets\/[\w.-]+\.(js|mjs|css|woff2))$/.test(path)) {
-      const contents = await readFile(resolve(directory, path));
+    if (entry.isDirectory() && ['assets', 'skills', 'skills/drive9-workspace'].includes(path)) {
+      Object.assign(hashes, await studioHashes(directory, `${path}/`));
+    } else if (entry.isFile() && /^(index\.html|config\.json|favicon\.svg|assets\/[\w.-]+\.(js|mjs|css|woff2)|skills\/drive9-workspace\/SKILL\.md)$/.test(path)) {
+      const file = resolve(directory, path);
+      if (path === 'skills/drive9-workspace/SKILL.md' && (await stat(file)).size > 64 * 1024) {
+        throw new Error('Studio skill exceeds the public file size limit.');
+      }
+      const contents = await readFile(file);
+      if (path === 'skills/drive9-workspace/SKILL.md' && contents.length > 64 * 1024) {
+        throw new Error('Studio skill exceeds the public file size limit.');
+      }
       if (!path.endsWith('.woff2') && /(?:-----BEGIN (?:[A-Z]+ )?PRIVATE KEY-----|\bgh[pousr]_[A-Za-z0-9]{20,}|\bgithub_pat_[A-Za-z0-9_]{20,}|\b(?:AKIA|ASIA)[A-Z0-9]{16}\b|sourceMappingURL\s*=)/.test(contents.toString('utf8'))) {
         throw new Error('Studio artifact contains a credential marker or source map reference.');
       }

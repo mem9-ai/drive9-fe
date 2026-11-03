@@ -79,8 +79,8 @@ node --test scripts/*.test.mjs tests/*.test.mjs
 ```
 
 For an update, set `studio_revision` to the newly reviewed full commit instead.
-The import command accepts only Console HTML, its favicon, JS/CSS/font assets and
-config; it rejects source maps, unexpected files and symlinks. It replaces the
+The import command accepts only Console HTML, its favicon, JS/CSS/font assets, config and the single
+`skills/drive9-workspace/SKILL.md` file (at most 64 KiB); it rejects source maps, unexpected files and symlinks. It replaces the
 local demo config with the same-origin `/studio` config and removes stale assets.
 Review the complete artifact and manifest diff, including a secret/internal-data
 scan, before committing. File hashes detect drift, not whether a bundle is safe.
