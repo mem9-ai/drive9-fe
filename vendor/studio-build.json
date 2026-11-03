@@ -1,27 +1,27 @@
 {
   "repository": "https://github.com/mem9-ai/tidb.ai",
-  "commit": "98ab56db2d3b9205caf75056595aa8f8484d9eaf",
+  "commit": "1fe123a533340d6a89e91ef17292c9641c432efb",
   "node": "24.22.1",
   "npm": "11.6.2",
   "build": "npm ci && npm run build:console -- --base=/studio/",
   "files": {
     "assets/FileAnalysisPanel-B3ENyFyH.css": "2051624448b93021fdde27a6db5a9a1e2535d2bb71c9da49f77aba1c923fe01b",
-    "assets/FileAnalysisPanel-DMpLIcDc.js": "50281d116e03606b7d5228991339a3d7556004a75640bc95f57ba43ebeb9b500",
-    "assets/FileExportDialog-T73omUg7.js": "4007bfdd87819fb03e56cfec9827fef32a3a666f22a2d3cfd74e6aa99319ab41",
-    "assets/FilePreviewPanel-BMj72Bfq.js": "ed4689903945f9bf48f7cfa1e80e1d645c3e6fc4480890b4216a8a75a126330b",
-    "assets/HtmlPreview-IkgvaDRR.js": "f891b856c1fd3262d39a953523db46b1858b661032781b17f197fc4d338c0e57",
+    "assets/FileAnalysisPanel-BIBruUX4.js": "ffa8e2b4963cf19b01174f4c8959a8c8fcef5b40ce50f5bd43ac4cd642ade1df",
+    "assets/FileExportDialog-CYJW86b9.js": "f485b97bf26062745e310371dbcce58fd89cfce69f60282f7f54335c246fa3e2",
+    "assets/FilePreviewPanel-2AdLMb9E.js": "fbc6afd413c8ee9f95ef47bb8a89a7b73677bb3ab89c4469dbc278be8e4dd697",
+    "assets/HtmlPreview-CJ7uK66o.js": "a07f3f2c3ec8856ab8dc5cd8b87aa5047744567cc5e70c389059be09993593ac",
     "assets/Mantine.context-BD-hrtpW.js": "0f5be49fe440fa9624fa77a6f94872162b372ae6f221c714ce716d4a22119137",
-    "assets/MermaidDiagram-CgC7nuYl.js": "78ee93b560ad5bda8384b226dc307e31f138283cc2420aff9fcd4f4244132627",
+    "assets/MermaidDiagram-D7zdqUch.js": "ae98f099d74a76a381302bb06242419c95ba0a5d06f11320efe1043c598f915e",
     "assets/MermaidFrame-Dp39ubYu.js": "21c8927c3f313a9da07e399a3672343a3672e8e7147de34af427f865bc56dcca",
     "assets/Text-lMD3k0ZT.js": "35628efcc87b956ef0c1427380dd8a8711dc09d9faf7c073d83b41d355d2545d",
-    "assets/WorkspaceSqlInput-DYa_FxrS.js": "5763bdfa0680ce46142c9a7d36b6172a5a5cd702412536fd726555fc467f42cd",
-    "assets/index-CA5IBD3A.js": "f0d524b73abc4ee5ac9f686901fc7c4e762127c0e5c094698c618170cf485bc4",
+    "assets/WorkspaceSqlInput-MjvJtJvV.js": "8dde2f273f1a92b0663ad2280a03bafb8ce7903e6d553f5ff6be73237bbf1ff9",
+    "assets/index-DWACP-0f.js": "f9e09c22d92e048852536ad7607a653116fc54ec9bc97c64a8099ed6b71006f0",
     "assets/index-iqdhgC49.css": "0936b7e733471467e69c7741a4072bf08e1eb668af3e643c62f666396e058830",
     "assets/inter-latin-wght-normal-Dx4kXJAl.woff2": "3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62",
-    "assets/snapshot-download-29CD-zlo.js": "88bff3978df62f51ea7560eaeb89b0699c0763d369d8d1f6a5b0f6c3c209012d",
+    "assets/snapshot-download-xBomxbZZ.js": "701820a3c634955b3e2e85e479655d88f8367b169421422cab75073031320a81",
     "assets/workspace-agent-QxUEBbVS.mjs": "c23648ba9f990e03057baac679a5911ef60721b682aeb94c0a2e30704d8ed952",
     "config.json": "93c48845bef6c4778ea3aff1081c36ac8f4662dd107acdced73e67060aac8b3e",
     "favicon.svg": "8b2b0827f55702048b500bd350f8c94f28e56190a2c659e7c0e7f7024cdca15c",
-    "index.html": "83bbfefd7cd9ad2b79a679ca35c212e783d66b0af90d6cf2dbbc3e48f185b632"
+    "index.html": "24dd6fa9fcb2951f253e06c36fd282e536281134a3f76af292da9deb86da0aab"
   }
 }
