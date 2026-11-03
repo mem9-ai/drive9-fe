@@ -55,6 +55,8 @@ async function fixture(t, html = '<script src="/studio/assets/app.js"></script>'
   await mkdir(join(siteDirectory, 'studio'), { recursive: true });
   await writeFile(join(consoleDirectory, 'index.html'), html);
   await writeFile(join(consoleDirectory, 'assets/app.js'), '/* fixture asset */');
+  await mkdir(join(consoleDirectory, 'skills/drive9-workspace'), { recursive: true });
+  await writeFile(join(consoleDirectory, 'skills/drive9-workspace/SKILL.md'), '# Workspace skill\n');
   await writeFile(join(consoleDirectory, 'config.json'), '{"apiOrigin":"http://127.0.0.1:4318"}');
   await writeFile(join(siteDirectory, 'index.html'), 'existing homepage');
   await writeFile(join(siteDirectory, 'skill.md'), 'existing skill');
@@ -69,6 +71,7 @@ test('prepares subpath assets and same-origin config while preserving the homepa
   assert.equal(await read('index.html'), 'existing homepage');
   assert.equal(await read('skill.md'), 'existing skill');
   assert.equal(await read('studio/assets/app.js'), '/* fixture asset */');
+  assert.equal(await read('studio/skills/drive9-workspace/SKILL.md'), '# Workspace skill\n');
   assert.deepEqual(JSON.parse(await read('studio/config.json')), { apiOrigin: '', apiPathPrefix: '/studio' });
   assert.match(await read('_redirects'), /^\/studio\/api\/\*/);
   await assert.rejects(read('studio/old.js'), { code: 'ENOENT' });
