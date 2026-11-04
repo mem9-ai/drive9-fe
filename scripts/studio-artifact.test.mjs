@@ -142,3 +142,12 @@ test('credential markers and inline source maps fail even with matching manifest
     });
   }
 });
+
+
+test('only approved discovery pages and search artifacts are accepted',async t=>{
+ const {directory}=await fixture(t);await mkdir(join(directory,'discover/get-started'),{recursive:true});
+ await writeFile(join(directory,'discover/index.html'),'<h1>Public product</h1>');await writeFile(join(directory,'discover/get-started/index.html'),'<h1>Get started</h1>');
+ for(const name of ['robots.txt','sitemap.xml','llms.txt'])await writeFile(join(directory,name),'public');
+ const hashes=await studioHashes(directory);assert.ok(hashes['discover/index.html']);assert.ok(hashes['sitemap.xml']);
+ await mkdir(join(directory,'discover/private'),{recursive:true});await writeFile(join(directory,'discover/private/index.html'),'private');await assert.rejects(studioHashes(directory),/unexpected/);
+});

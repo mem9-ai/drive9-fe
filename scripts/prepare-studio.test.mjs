@@ -10,6 +10,7 @@ test('API and schema proxy rules precede the scoped SPA fallback', () => {
   assert.deepEqual(rules, [
     '/studio/api/* https://api.example.invalid/api/:splat 200!',
     '/studio/openapi.json https://api.example.invalid/openapi.json 200!',
+    '/studio/discover/* /404.html 404',
     '/studio/* /studio/index.html 200',
   ]);
   // Existing site pages and real Studio assets must win over the SPA fallback.
@@ -86,4 +87,15 @@ test('bad origin, missing output, and root-base build fail before changing the s
   await assert.rejects(prepareStudio({ ...options, consoleDirectory: join(options.consoleDirectory, 'missing') }), { code: 'ENOENT' });
   assert.equal(await readFile(join(options.siteDirectory, 'studio/old.js'), 'utf8'), 'stale asset');
   await assert.rejects(readFile(join(options.siteDirectory, '_redirects')), { code: 'ENOENT' });
+});
+
+
+test('approved public discovery pages get production canonicals and preview noindex',async t=>{
+  const options=await fixture(t);await mkdir(join(options.consoleDirectory,'discover'),{recursive:true});
+  await writeFile(join(options.consoleDirectory,'discover/index.html'),'<!doctype html><html><head><meta name="robots" content="noindex"></head><body><h1>Useful public content</h1></body></html>');
+  await writeFile(join(options.siteDirectory,'sitemap.xml'),'<?xml version="1.0"?><urlset><url><loc>https://drive9.ai/</loc></url></urlset>');
+  await prepareStudio({...options,context:'production'});
+  let html=await readFile(join(options.siteDirectory,'studio/discover/index.html'),'utf8');assert.match(html,/index,follow/);assert.match(html,/rel="canonical" href="https:\/\/drive9.ai\/studio\/discover\//);
+  assert.match(await readFile(join(options.siteDirectory,'sitemap.xml'),'utf8'),/studio\/discover\//);
+  await prepareStudio({...options,context:'deploy-preview'});html=await readFile(join(options.siteDirectory,'studio/discover/index.html'),'utf8');assert.match(html,/noindex,follow/);assert.ok(!html.includes('rel="canonical"'));
 });
