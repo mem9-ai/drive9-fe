@@ -1,0 +1,8 @@
+# Drive9 Workspace
+
+A data workspace for developers and agents. PostgreSQL-compatible databases and File Systems depend on deployment availability.
+
+- [A workspace for your data and AI agents](/studio/discover/): Explore files, run SQL, and give your agent scoped access to a shared data workspace.
+- [Get started with a data workspace](/studio/discover/get-started/): Try a temporary data workspace, explore the sales sample, and connect an agent with a scoped Workspace Key.
+- [Analyze sales data with SQL or an AI agent](/studio/discover/analyze-sales-data/): A worked path from a CSV sales sample to a saved report: compare states, investigate products, and verify the results.
+- [API access for developers and AI agents](/studio/discover/api/): Connect an agent to the workspace API with explicit resource and action permissions and current OpenAPI documentation.
