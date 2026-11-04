@@ -160,6 +160,10 @@ The Studio artifact may include only the approved `discover/` entry, get-started
 sales-analysis, API and privacy pages, plus `robots.txt`, `sitemap.xml` and `llms.txt`.
 These files retain source checksums and credential-marker checks; arbitrary nested
 HTML, source maps and symlinks are still rejected.
+The importer and trusted Git-candidate validator share the same public-file allowlist.
+Validate a complete newly built artifact, including discovery pages, through both paths
+before reporting a Console update as published; passing tests against the old vendored
+artifact alone does not verify publication of new file types.
 
 Production preparation gives the existing public pages canonical URLs under
 `https://drive9.ai/studio/discover/`, adds them to the root sitemap, and links the

@@ -56,6 +56,30 @@ test('trusted validator rejects any additional skill file', async t => {
   await assert.rejects(gate(), /artifact path or Git mode/);
 });
 
+test('complete discovery artifact passes the trusted gate without admitting private pages', async t => {
+  const { directory, commit, gate } = await fixture(t);
+  const consoleDirectory = join(directory, 'vendor/studio');
+  for (const page of ['', 'get-started/', 'analyze-sales-data/', 'api/', 'privacy/']) {
+    const folder = join(consoleDirectory, 'discover', page);
+    await mkdir(folder, { recursive: true });
+    await writeFile(join(folder, 'index.html'), '<!doctype html><html><head></head><body>Workspace guide</body></html>');
+  }
+  for (const name of ['robots.txt', 'sitemap.xml', 'llms.txt']) {
+    await writeFile(join(consoleDirectory, name), 'Public discovery index');
+  }
+  const manifestPath = join(directory, 'vendor/studio-build.json');
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  manifest.files = await studioHashes(consoleDirectory);
+  await writeFile(manifestPath, JSON.stringify(manifest));
+  commit();
+  await gate();
+  const privatePage = join(consoleDirectory, 'discover/private');
+  await mkdir(privatePage);
+  await writeFile(join(privatePage, 'index.html'), 'Not a public entry point');
+  commit();
+  await assert.rejects(gate(), /artifact path or Git mode/);
+});
+
 test('candidate cannot modify or delete the workflow or trusted validator', async t => {
   const { directory, git, commit, baseline, gate } = await fixture(t);
   for (const path of ['.github/workflows/studio-publication.yml', 'scripts/validate-studio-publication.mjs']) {

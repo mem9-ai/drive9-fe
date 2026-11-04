@@ -4,7 +4,7 @@ import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { verifyStudioArtifact } from './studio-artifact.mjs';
+import { studioPublicFile, verifyStudioArtifact } from './studio-artifact.mjs';
 import { prepareStudio } from './prepare-studio.mjs';
 
 const artifactPath = path => path.startsWith('vendor/studio/') || path === 'vendor/studio-build.json';
@@ -24,8 +24,10 @@ export async function validateStudioPublication(repository, base, head, artifact
   try {
     const entries = git('ls-tree', '-rz', '--full-tree', head, '--', 'vendor/studio', 'vendor/studio-build.json').toString().split('\0').filter(Boolean);
     for (const entry of entries) {
-      const match = entry.match(/^100644 blob ([a-f0-9]{40})\t(vendor\/studio-build\.json|vendor\/studio\/(?:index\.html|config\.json|favicon\.svg|assets\/[\w.-]+\.(?:js|mjs|css|woff2)|skills\/drive9-workspace\/SKILL\.md))$/);
-      assert.ok(match, 'Candidate contains an unexpected artifact path or Git mode.');
+      const match = entry.match(/^100644 blob ([a-f0-9]{40})\t(.+)$/);
+      assert.ok(match && (match[2] === 'vendor/studio-build.json' ||
+        (match[2].startsWith('vendor/studio/') && studioPublicFile(match[2].slice('vendor/studio/'.length)))),
+      'Candidate contains an unexpected artifact path or Git mode.');
       const [, object, path] = match;
       const destination = join(temporary, path);
       await mkdir(dirname(destination), { recursive: true });
