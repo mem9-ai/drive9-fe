@@ -12,9 +12,9 @@ export async function studioHashes(directory, prefix = '') {
     .sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
   for (const entry of entries) {
     const path = prefix + entry.name;
-    if (entry.isDirectory() && ['assets', 'skills', 'skills/drive9-workspace'].includes(path)) {
+    if (entry.isDirectory() && ['assets', 'skills', 'skills/drive9-workspace', 'discover', 'discover/get-started', 'discover/analyze-sales-data', 'discover/api', 'discover/privacy'].includes(path)) {
       Object.assign(hashes, await studioHashes(directory, `${path}/`));
-    } else if (entry.isFile() && /^(index\.html|config\.json|favicon\.svg|assets\/[\w.-]+\.(js|mjs|css|woff2)|skills\/drive9-workspace\/SKILL\.md)$/.test(path)) {
+    } else if (entry.isFile() && /^(index\.html|config\.json|favicon\.svg|robots\.txt|sitemap\.xml|llms\.txt|discover\/(?:index\.html|(?:get-started|analyze-sales-data|api|privacy)\/index\.html)|assets\/[\w.-]+\.(js|mjs|css|woff2)|skills\/drive9-workspace\/SKILL\.md)$/.test(path)) {
       const file = resolve(directory, path);
       if (path === 'skills/drive9-workspace/SKILL.md' && (await stat(file)).size > 64 * 1024) {
         throw new Error('Studio skill exceeds the public file size limit.');

@@ -1,4 +1,10 @@
 User-agent: *
 Allow: /
+Disallow: /studio/api/
+Allow: /studio/discover/
+Allow: /studio/api/openapi.json
+Allow: /studio/sitemap.xml
+Allow: /studio/llms.txt
+Allow: /studio/skills/drive9-workspace/SKILL.md
 
 Sitemap: https://drive9.ai/sitemap.xml

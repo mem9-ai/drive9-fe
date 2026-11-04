@@ -152,3 +152,20 @@ configuration is separate from publishing these static files.
 After deploying, verify the homepage, a direct Studio refresh, JS/CSS loading,
 API error responses, login callback and logout on the actual Netlify domain.
 Local build/tests do not constitute live OAuth or Netlify deployment acceptance.
+
+
+## Workspace discovery pages
+
+The Studio artifact may include only the approved `discover/` entry, get-started,
+sales-analysis, API and privacy pages, plus `robots.txt`, `sitemap.xml` and `llms.txt`.
+These files retain source checksums and credential-marker checks; arbitrary nested
+HTML, source maps and symlinks are still rejected.
+
+Production preparation gives the existing public pages canonical URLs under
+`https://drive9.ai/studio/discover/`, adds them to the root sitemap, and links the
+Workspace guide from the homepage. Preview preparation keeps noindex and omits
+canonicals. Unknown discovery URLs return 404 before the application fallback.
+The application and `/studio/admin` retain noindex. Robots allow crawlers to see
+those noindex rules; backend authorization protects the data. Admin additionally
+requires TiDB Cloud authentication and a verified PingCAP email in the backend.
+Neither this website nor its build reads or configures backend identities/secrets.

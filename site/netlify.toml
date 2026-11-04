@@ -27,3 +27,16 @@
   to = "https://releases.drive9.ai/latest/:splat"
   status = 302
   force = true
+
+# The Console and Admin are private application surfaces. Public discovery has its
+# own initial HTML and production-only index policy from prepare-studio.mjs.
+[[headers]]
+  for = "/studio/admin"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    Cache-Control = "no-store"
+
+[[headers]]
+  for = "/studio/api/*"
+  [headers.values]
+    Cache-Control = "no-store"

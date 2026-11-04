@@ -3,6 +3,7 @@ import { isIP } from 'node:net';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verifyStudioArtifact } from './studio-artifact.mjs';
+import { prepareDiscovery } from './prepare-discovery.mjs';
 
 export function studioRedirects(apiOrigin) {
   const invalid = () => new Error('STUDIO_API_ORIGIN must be a public HTTPS origin without a path, credentials, or query.');
@@ -20,12 +21,13 @@ export function studioRedirects(apiOrigin) {
     `/studio/openapi.json ${url.origin}/openapi.json 200!`,
     // Netlify matches paths with or without a trailing slash. A slash-only
     // redirect would therefore also redirect /studio/ back to itself.
+    '/studio/discover/* /404.html 404',
     '/studio/* /studio/index.html 200',
     '',
   ].join('\n');
 }
 
-export async function prepareStudio({ consoleDirectory, siteDirectory, apiOrigin }) {
+export async function prepareStudio({ consoleDirectory, siteDirectory, apiOrigin, context = 'deploy-preview' }) {
   // Validate before changing output; never echo deployment configuration on failure.
   const redirects = studioRedirects(apiOrigin);
   const html = await readFile(resolve(consoleDirectory, 'index.html'), 'utf8');
@@ -39,6 +41,7 @@ export async function prepareStudio({ consoleDirectory, siteDirectory, apiOrigin
   // The gateway strips the public prefix; the API keeps its existing routes.
   await writeFile(resolve(destination, 'config.json'), '{"apiOrigin":"","apiPathPrefix":"/studio"}\n');
   await writeFile(resolve(siteDirectory, '_redirects'), redirects);
+  await prepareDiscovery(destination, siteDirectory, context);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -49,6 +52,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       consoleDirectory: resolve(root, 'vendor/studio'),
       siteDirectory: resolve(root, 'site'),
       apiOrigin: process.env.STUDIO_API_ORIGIN,
+      context:process.env.CONTEXT || 'deploy-preview',
     });
     console.log('Studio static assets and routing prepared.');
   } catch (error) {
