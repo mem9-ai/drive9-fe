@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /studio/discover/
+Disallow: /studio/api/
+# Preview HTML uses noindex.
