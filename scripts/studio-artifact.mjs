@@ -7,7 +7,7 @@ const sourceRepository = 'https://github.com/mem9-ai/tidb.ai';
 const studioConfig = '{"apiOrigin":"","apiPathPrefix":"/studio"}\n';
 
 export function studioPublicFile(path) {
-  return /^(index\.html|config\.json|favicon\.svg|robots\.txt|sitemap\.xml|llms\.txt|discover\/(?:index\.html|(?:get-started|analyze-sales-data|api|privacy)\/index\.html)|assets\/[\w.-]+\.(js|mjs|css|woff2)|skills\/drive9-workspace\/SKILL\.md)$/.test(path);
+  return /^(index\.html|config\.json|favicon\.svg|robots\.txt|sitemap\.xml|llms\.txt|discover\/(?:index\.html|(?:get-started|analyze-sales-data|api|privacy)\/index\.html)|assets\/[\w.-]+\.(js|mjs|css|woff2)|skills\/drive9-workspace\/(?:SKILL\.md|install\.py|report\.py))$/.test(path);
 }
 
 export async function studioHashes(directory, prefix = '') {
@@ -20,11 +20,11 @@ export async function studioHashes(directory, prefix = '') {
       Object.assign(hashes, await studioHashes(directory, `${path}/`));
     } else if (entry.isFile() && studioPublicFile(path)) {
       const file = resolve(directory, path);
-      if (path === 'skills/drive9-workspace/SKILL.md' && (await stat(file)).size > 64 * 1024) {
+      if (path.startsWith('skills/drive9-workspace/') && (await stat(file)).size > 64 * 1024) {
         throw new Error('Studio skill exceeds the public file size limit.');
       }
       const contents = await readFile(file);
-      if (path === 'skills/drive9-workspace/SKILL.md' && contents.length > 64 * 1024) {
+      if (path.startsWith('skills/drive9-workspace/') && contents.length > 64 * 1024) {
         throw new Error('Studio skill exceeds the public file size limit.');
       }
       if (!path.endsWith('.woff2') && /(?:-----BEGIN (?:[A-Z]+ )?PRIVATE KEY-----|\bgh[pousr]_[A-Za-z0-9]{20,}|\bgithub_pat_[A-Za-z0-9_]{20,}|\b(?:AKIA|ASIA)[A-Z0-9]{16}\b|sourceMappingURL\s*=)/.test(contents.toString('utf8'))) {

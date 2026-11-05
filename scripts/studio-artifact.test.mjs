@@ -38,13 +38,26 @@ test('agent modules are accepted as checked public assets and scanned for secret
   await assert.rejects(studioHashes(directory), /source map/);
 });
 
-test('only the bounded Workspace skill is accepted, hashed and scanned', async t => {
+test('only the bounded Workspace skill and report tools are accepted, hashed and scanned', async t => {
   const { directory } = await fixture(t);
   const folder = join(directory, 'skills/drive9-workspace');
   const skill = join(folder, 'SKILL.md');
   await mkdir(folder, { recursive: true });
   await writeFile(skill, '# Workspace skill\n');
   assert.match((await studioHashes(directory))['skills/drive9-workspace/SKILL.md'], /^[a-f0-9]{64}$/);
+  for (const name of ['install.py', 'report.py']) {
+    const helper = join(folder, name);
+    await writeFile(helper, '# Public report client');
+    assert.match((await studioHashes(directory))[`skills/drive9-workspace/${name}`], /^[a-f0-9]{64}$/);
+    await writeFile(helper, 'x'.repeat(64 * 1024 + 1));
+    await assert.rejects(studioHashes(directory), /size limit/);
+    await writeFile(helper, `ghp_${'x'.repeat(36)}`);
+    await assert.rejects(studioHashes(directory), /credential marker/);
+    await rm(helper);
+  }
+  await writeFile(join(folder, 'extra.py'), 'unexpected');
+  await assert.rejects(studioHashes(directory), /unexpected/);
+  await rm(join(folder, 'extra.py'));
   await writeFile(join(folder, 'extra.md'), 'unexpected');
   await assert.rejects(studioHashes(directory), /unexpected/);
   await rm(join(folder, 'extra.md'));
