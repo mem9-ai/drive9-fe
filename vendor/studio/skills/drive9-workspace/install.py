@@ -1,4 +1,4 @@
-"""Install only the public Drive9 report skill and its private Python environment."""
+"""Install only the Drive9 workspace skill and its private Python environment."""
 
 from contextlib import contextmanager
 import hashlib
@@ -96,7 +96,7 @@ def install_assets(skills, runtime):
 
 
 # fmt: off
-ASSETS = {"SKILL.md":"66d347bc30bb6d17b11ae23a51f334793f5f36026c50f9b9a5fa7dcf0bcdd272","report.py":"bd2171049e246037074b1f6e9ed8f6af9b6bd863890552be707c0ad4005497e4"}
+ASSETS = {"SKILL.md":"9a74669c4aee908485e93dfa00c2cc1fe3d6db163d2556cc56684f48a1c4507f","report.py":"bd2171049e246037074b1f6e9ed8f6af9b6bd863890552be707c0ad4005497e4","private_csv.py":"82c106a92b4092229d54c267e15071b50409fa5d7cc36b7380f5c504c97bd7f2"}
 # fmt: on
 
 if __name__ == "__main__":
