@@ -1,9 +1,11 @@
 ---
 name: drive9-workspace
-description: Start or continue a free Drive9 public US sales report in this project, including a report created by another local coding agent. Also use for explicit file and database tasks with an existing Workspace Key.
+description: Start or continue a free Drive9 public US sales report in this project, including a report created by another local coding agent. Upload an explicitly selected private CSV into an independent 24-hour workspace without login, or resume that project’s stored CSV. Also use for authenticated file and database tasks.
 ---
 
 # Drive9 Workspace
+
+If a user returns to a private CSV, use the private workflow even when they call the result a sales report. If the source is ambiguous and both kinds of report exist, ask which one to continue before opening or creating anything.
 
 ## Free public sales report
 
@@ -16,13 +18,22 @@ For the Studio free-trial prompt or a request to continue its sales report, use 
 **Saved report (`synced`).** Lead with the finding and its calculation in one sentence. Give the clickable `studioUrl` (“View report in Studio”) and a single “Local Markdown” link using the absolute `report` path. Describe the Studio link as read-only to anyone with the link until the original expiry in the user's timezone. Use descriptive labels so internal paths stay out of the reply.
 
 - **Version 1:** End with one question the user can accept right here, naming the leading state: “Want me to add California’s top product and its share of the state’s sales to this report?” Wait for their answer. A “yes”, “好” or equivalent in context means run `products` in this same project. No copy/paste, tool switch or repeated setup is needed.
-- **Version 2 (including reopening a completed report):** Give the verified product, sales and share. On an update, tell the user the finding is now in the same report and return the original Studio link. On a reopen, describe what is already there. The sample analysis is complete. For someone ready to use their own data, point to [Workspace Files](https://drive9.ai/studio/#files), where they can open a file system and upload a CSV themselves. Keep private files separate from the public-sample trial.
+- **Version 2 (including reopening a completed report):** Give the verified product, sales and share. On an update, tell the user the finding is now in the same report and return the original Studio link. On a reopen, describe what is already there. The sample analysis is complete. If the user wants to try their own CSV, offer to open or upload it from this chat using the private CSV workflow below.
 - **Switching agents:** Only when the user wants a handoff, give one portable prompt for another local agent in the same project: “Follow https://drive9.ai/studio/skills/drive9-workspace/SKILL.md to continue my Drive9 sales report in this project and add the top product in the leading state.” The first-version Studio report also offers a copyable follow-up.
 - If an older helper returns `synced` without `studioUrl`, update it once with the official installer and repeat the same command in the same project. Only show a Studio link returned by the helper.
 
 **Local or unavailable report.** For `local-only`, link the actual local file, explain what prevented a confirmed remote save, and give the recovery step from the helper's message. For `expired` or `forgotten`, offer the retained Markdown if available. Access expires 48 hours after registration. The next invocation for this project clears an expired key; `forget` removes it early. Only run `new` when the user explicitly requests a separate trial after expiry or removal.
 
-When the task calls for a private Workspace or spending, explain that a trial grants neither. Keep using the following authenticated API flow for existing customer integrations.
+When the task calls for an existing customer Workspace or spending, explain that a trial grants neither. Keep using the following authenticated API flow for existing customer integrations.
+
+## My own CSV, without an account
+
+When the user asks to analyze their own CSV with Drive9, use the isolated Python and installer described above. If `private_csv.py` is missing, update once with the current official installer. Run the sibling `private_csv.py` with `-I` in the user's project. Authenticate only through the helper and OS credential store.
+
+- **First upload.** Use `upload <path>` for the exact local CSV the user selected. When no file was named, first try `resume` to find this project's existing source. If there is none, ask which CSV to use. Never scan for files to upload. The first upload opens an independent 24-hour Workspace for one UTF-8 CSV up to 1 MiB.
+- **Continue.** Run `resume` without a path, including in another local agent in the same project. Use the returned absolute `source` path for the requested analysis. The helper checks the current remote file, restores a missing local copy and reuses unchanged content. Reopening a completed report is a read.
+- **Report.** Answer the user's question using the selected data. Save or update the project's local Markdown report, then return a clickable local file link. Keep private results out of public sample links. For a failed or missing upload, report what actually succeeded.
+- **File changes.** Use `replace <path>` only when the user explicitly selects a replacement. If the current version changed, resume and reconcile before retrying. An expired binding ends remote access and retains local files. Only start another timed Workspace with `new <path>` on explicit request. `forget` removes the local credential.
 
 ## Authenticated Workspace
 
