@@ -32,7 +32,7 @@ test('trusted validator accepts artifacts and rejects empty, unrelated and renam
   await writeFile(join(directory, 'vendor/studio/assets/workspace-agent.mjs'), 'export const agent = true;');
   await mkdir(join(directory, 'vendor/studio/skills/drive9-workspace'), { recursive: true });
   await writeFile(join(directory, 'vendor/studio/skills/drive9-workspace/SKILL.md'), '# Workspace skill\n');
-  for (const name of ['install.py', 'report.py']) {
+  for (const name of ['install.py', 'report.py', 'private_csv.py']) {
     await writeFile(join(directory, 'vendor/studio/skills/drive9-workspace', name), '# Reviewed report helper');
   }
   const manifestPath = join(directory, 'vendor/studio-build.json');
