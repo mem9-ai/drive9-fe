@@ -1,9 +1,21 @@
 ---
 name: drive9-workspace
-description: Access a Drive9 Workspace with a scoped Workspace Key to inspect files, analyze data, or save requested results. Use when a task supplies a Workspace API endpoint and asks you to work with its files or databases.
+description: Start or continue a free Drive9 public US sales report in this project, including a previous report created by Codex or Pi. Also use for explicit file and database tasks with an existing Workspace Key.
 ---
 
 # Drive9 Workspace
+
+## Free public sales report
+
+For the Studio free-trial prompt or a request to continue its sales report, use the project you are already in. The public sample requires no account, Workspace Key or payment method. Use only the public US sales fixture. Previous chat history is optional.
+
+1. Locate the installed helper at `~/.agents/skills/drive9-workspace/report.py` and its isolated Python under `~/.drive9/report-runtime/` (`bin/python` on macOS/Linux or `Scripts/python.exe` on Windows). On first use, download [the official installer](https://drive9.ai/studio/skills/drive9-workspace/install.py) over HTTPS to a temporary file. Inspect it and run it with Python 3.10+ in isolated mode (`python3 -I <downloaded-file>`, or `py -3 -I <downloaded-file>` on Windows), respecting the host's normal installation permissions. This installs the same skill for both agents.
+2. Invoke that isolated Python with `-I`, the absolute helper path and `start` in the current project. To add the leading state's top product to the same report, use `products`. Reuse the same directory or pass `--project` with its path. The helper owns the OS credential, verifies the input, computes the totals and reads the saved report back.
+3. Return the actual result, calculation, and a clickable absolute local file link from the JSON `report` field. For `synced`, show the expiry in the user's timezone. After the first report, offer one follow-up they can paste into either agent in this project: “Continue my Drive9 sales report and add the top product in the leading state.” For `local-only`, explain the reported limitation; do not describe the result as remotely saved. Expired and forgotten bindings keep the local Markdown. Access expires 48 hours after registration. The next invocation for this project clears an expired key; `forget` removes it early. Only run `new` if the user explicitly wants a separate trial after expiry or removal.
+
+When the task calls for a private Workspace or spending, explain that a trial grants neither. Keep using the following authenticated API flow for existing customer integrations.
+
+## Authenticated Workspace
 
 The task supplies the Global API endpoint and identifies the resources and work requested.
 Read `WORKSPACE_API_KEY` from the environment or the user's secret manager. Never print it,
