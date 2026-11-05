@@ -96,7 +96,7 @@ def install_assets(skills, runtime):
 
 
 # fmt: off
-ASSETS = {"SKILL.md":"0dd498cfab191956b3d3bd8ad826db2ea707398221a7b87b0061ba045397d524","report.py":"333e9b1677c01d7a3a27cc7626ae85dc15b8cde74392bfabbbfc0cc2eef8edc0"}
+ASSETS = {"SKILL.md":"7d450110b83a54a738fac3b9cd9a5d86fa8fa473f202cb7db8f8b63bb80aedbf","report.py":"bd2171049e246037074b1f6e9ed8f6af9b6bd863890552be707c0ad4005497e4"}
 # fmt: on
 
 if __name__ == "__main__":

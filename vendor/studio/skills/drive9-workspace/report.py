@@ -317,10 +317,14 @@ def sync_report(base, action, private, path, state, directory, sample, store, se
     atomic_write(file, text.encode())
     state["file"] = str(file)
     save_state(path, state)
+    expiry = result["expiresAt"]
+    view_proof = private.sign(f"drive9/trial/report-view/v1\n{report_id}\n{expiry}".encode())
+    grant = f"v1.{proof['publicKey']}.{report_id}.{expiry}.{encode(view_proof)}"
     return {
         "status": "synced",
         "reportId": report_id,
         "version": result["revision"],
+        "studioUrl": f"{base}/report/#{grant}",
         "report": str(file),
         "expiresAt": datetime.fromtimestamp(
             result["expiresAt"], timezone.utc
