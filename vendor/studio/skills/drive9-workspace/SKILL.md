@@ -1,9 +1,9 @@
 ---
-name: drive9-workspace
-description: Start or continue a free Drive9 public US sales report in this project, including a report created by another local coding agent. Upload an explicitly selected private CSV into an independent 24-hour workspace without login, or resume that project’s stored CSV. Also use for authenticated file and database tasks.
+name: tidb-agent-workspace
+description: Start or continue a free TiDB Agent Workspace public US sales report in this project, including a report created by another local coding agent. Upload an explicitly selected private CSV into an independent 24-hour workspace without login, or resume that project’s stored CSV. Also use for authenticated file and database tasks.
 ---
 
-# Drive9 Workspace
+# TiDB Agent Workspace
 
 If a user returns to a private CSV, use the private workflow even when they call the result a sales report. If the source is ambiguous and both kinds of report exist, ask which one to continue before opening or creating anything.
 
@@ -19,7 +19,7 @@ For the Studio free-trial prompt or a request to continue its sales report, use 
 
 - **Version 1:** End with one question the user can accept right here, naming the leading state: “Want me to add California’s top product and its share of the state’s sales to this report?” Wait for their answer. A “yes”, “好” or equivalent in context means run `products` in this same project. No copy/paste, tool switch or repeated setup is needed.
 - **Version 2 (including reopening a completed report):** Give the verified product, sales and share. On an update, tell the user the finding is now in the same report and return the original Studio link. On a reopen, describe what is already there. The sample analysis is complete. Offer the two in-chat choices below when the user has not already asked a follow-up. If a user accepts an earlier invitation to compare the top two states, calculate it immediately.
-- **Switching agents:** Only when the user wants a handoff, give one portable prompt for another local agent in the same project: “Follow https://drive9.ai/studio/skills/drive9-workspace/SKILL.md to continue my Drive9 sales report in this project and add the top product in the leading state.” The first-version Studio report also offers a copyable follow-up.
+- **Switching agents:** Only when the user wants a handoff, give one portable prompt for another local agent in the same project: “Follow https://drive9.ai/studio/skills/drive9-workspace/SKILL.md to continue my TiDB Agent Workspace sales report in this project and add the top product in the leading state.” The first-version Studio report also offers a copyable follow-up.
 - If an older helper returns `synced` without `studioUrl`, update it once with the official installer and repeat the same command in the same project. Only show a Studio link returned by the helper.
 
 **Local or unavailable report.** For `local-only`, link the actual local file, explain what prevented a confirmed remote save, and give the recovery step from the helper's message. For `expired` or `forgotten`, offer the retained Markdown if available. Access expires 48 hours after registration. The next invocation for this project clears an expired key; `forget` removes it early. Only run `new` when the user explicitly requests a separate trial after expiry or removal.

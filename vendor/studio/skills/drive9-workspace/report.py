@@ -1,4 +1,4 @@
-"""Drive9 free public-sample report. Run with the installation's isolated Python."""
+"""TiDB Agent Workspace free public-sample report. Run with the installation's isolated Python."""
 
 import argparse
 import base64
@@ -360,4 +360,4 @@ if __name__ == "__main__":
         KeyringError,
         TimeoutError,
     ) as error:
-        sys.exit(f"Drive9: {error}")
+        sys.exit(f"TiDB Agent Workspace: {error}")
