@@ -38,17 +38,18 @@ test('agent modules are accepted as checked public assets and scanned for secret
   await assert.rejects(studioHashes(directory), /source map/);
 });
 
-test('only the bounded Workspace skill and report tools are accepted, hashed and scanned', async t => {
+for (const skillFolder of ['tidb-agent-workspace', 'drive9-workspace']) {
+test(`only bounded ${skillFolder} assets are accepted, hashed and scanned`, async t => {
   const { directory } = await fixture(t);
-  const folder = join(directory, 'skills/drive9-workspace');
+  const folder = join(directory, `skills/${skillFolder}`);
   const skill = join(folder, 'SKILL.md');
   await mkdir(folder, { recursive: true });
   await writeFile(skill, '# Workspace skill\n');
-  assert.match((await studioHashes(directory))['skills/drive9-workspace/SKILL.md'], /^[a-f0-9]{64}$/);
+  assert.match((await studioHashes(directory))[`skills/${skillFolder}/SKILL.md`], /^[a-f0-9]{64}$/);
   for (const name of ['install.py', 'report.py', 'private_csv.py', 'private-csv.md', 'workspace-api.md']) {
     const helper = join(folder, name);
     await writeFile(helper, '# Public report client');
-    assert.match((await studioHashes(directory))[`skills/drive9-workspace/${name}`], /^[a-f0-9]{64}$/);
+    assert.match((await studioHashes(directory))[`skills/${skillFolder}/${name}`], /^[a-f0-9]{64}$/);
     await writeFile(helper, 'x'.repeat(64 * 1024 + 1));
     await assert.rejects(studioHashes(directory), /size limit/);
     await writeFile(helper, `ghp_${'x'.repeat(36)}`);
@@ -69,6 +70,8 @@ test('only the bounded Workspace skill and report tools are accepted, hashed and
   await symlink(join(directory, 'index.html'), skill);
   await assert.rejects(studioHashes(directory), /unexpected/);
 });
+
+}
 
 test('valid artifact verifies; modified, missing and extra assets fail', async t => {
   const { directory, manifestPath } = await fixture(t);
