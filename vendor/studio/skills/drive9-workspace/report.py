@@ -133,6 +133,14 @@ def summary(sample, products, saved=None):
         "| --- | ---: |",
     ]
     result += [f"| {name} | {amount:,.2f} |" for name, amount in states.most_common()]
+    top_states = states.most_common(2)
+    combined = sum(amount for _, amount in top_states)
+    calculation = " + ".join(f"{name} (${amount:,.2f})" for name, amount in top_states)
+    result.extend([
+        "", "## Top two states", "",
+        f"{calculation} = ${combined:,.2f}.",
+        f"${combined:,.2f} / ${total:,.2f} = {combined / total:.1%} of total sales.",
+    ])
     if products:
         breakdown = Counter()
         for row in rows:
@@ -325,6 +333,7 @@ def sync_report(base, action, private, path, state, directory, sample, store, se
         "reportId": report_id,
         "version": result["revision"],
         "studioUrl": f"{base}/report/#{grant}",
+        "insightsUrl": f"{base}/report/?view=markets#{grant}",
         "report": str(file),
         "expiresAt": datetime.fromtimestamp(
             result["expiresAt"], timezone.utc
