@@ -49,6 +49,7 @@ async function runShellInstaller(t, {
   checksums = 'valid',
   installDir = 'allowlisted',
   homeName = 'home',
+  fresh = false,
 } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'drive9-install-'));
   t.after(() => rm(root, { recursive: true, force: true }));
@@ -102,12 +103,14 @@ async function runShellInstaller(t, {
       pathPrefix = homeBin;
       break;
     default:
-      await mkdir(homeBin, { recursive: true });
+      if (!fresh) {
+        await mkdir(homeBin, { recursive: true });
+      }
       targetDir = homeBin;
   }
 
   const target = join(targetDir, 'drive9');
-  if (installDir !== 'unset' && installDir !== 'unset-escaping') {
+  if (!fresh && installDir !== 'unset' && installDir !== 'unset-escaping') {
     await writeFile(target, oldPayload, { mode: 0o755 });
   }
 
@@ -224,6 +227,13 @@ for (const homeName of ['home with spaces', "home's & co"]) {
 
 test('shell installer accepts an allowlisted directory under a symlinked home', async t => {
   const { error, root, target } = await runShellInstaller(t, { installDir: 'home-symlinked' });
+  assert.equal(Boolean(error), false, error?.stderr);
+  assert.equal(await readFile(target, 'utf8'), newPayload);
+  assert.ok(existsSync(join(root, 'home', '.local', 'bin', 'drive9')), 'the real profile must hold the binary');
+});
+
+test('shell installer creates a fresh allowlisted directory under a symlinked home', async t => {
+  const { error, root, target } = await runShellInstaller(t, { installDir: 'home-symlinked', fresh: true });
   assert.equal(Boolean(error), false, error?.stderr);
   assert.equal(await readFile(target, 'utf8'), newPayload);
   assert.ok(existsSync(join(root, 'home', '.local', 'bin', 'drive9')), 'the real profile must hold the binary');

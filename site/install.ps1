@@ -185,14 +185,16 @@ function Resolve-PhysicalDirOnce($Path) {
 # destination policy is applied to the directory that is actually written to.
 function Resolve-PhysicalDir($Path) {
     $current = ConvertTo-NormalizedDir $Path
-    for ($pass = 0; $pass -lt 8; $pass++) {
+    for ($pass = 0; $pass -lt 32; $pass++) {
         $next = Resolve-PhysicalDirOnce $current
         if ($next -ieq $current) {
-            break
+            return $current
         }
         $current = $next
     }
-    return $current
+    # An intermediate hop is never an acceptable answer: the caller would then
+    # approve a path whose real target may sit outside the trusted roots.
+    throw "directory link chain at $Path did not resolve after 32 passes"
 }
 
 # The only directories drive9 may be installed into, spelled both relative to the
@@ -211,7 +213,9 @@ function Get-AllowedInstallDirs {
     foreach ($pair in $pairs) {
         $suffix = $pair[0]
         $root = $pair[1]
-        foreach ($base in @($root, (Resolve-PhysicalDir $root))) {
+        $bases = @($root)
+        try { $bases += Resolve-PhysicalDir $root } catch { }
+        foreach ($base in $bases) {
             if ([string]::IsNullOrWhiteSpace($base)) { continue }
             try {
                 $dirs += ConvertTo-NormalizedDir (Join-Path $base $suffix)
@@ -279,7 +283,7 @@ function Test-AllowedInstallDir($Path) {
     return $false
 }
 
-function Resolve-SafeInstallDir($Requested) {
+function Resolve-SafeInstallDir($Requested, $Label = 'DRIVE9_INSTALL_DIR') {
     $value = $Requested.Trim()
 
     # This value is written to disk and persisted into the user PATH, so refuse
@@ -306,9 +310,10 @@ function Resolve-SafeInstallDir($Requested) {
         try { $physical = Resolve-PhysicalDir $value } catch { }
         $detail = ''
         if ($physical -and ($physical -ine (ConvertTo-NormalizedDir $value))) {
-            $detail = '; it resolves to ' + $physical
+            $detail = ' (resolves to ' + $physical + ')'
         }
-        Fail ("DRIVE9_INSTALL_DIR='" + $value + "' is not an allowed install directory" + $detail + ". Allowed directories: " + ((Get-AllowedInstallDirs) -join ", "))
+        $subject = if ($Label -eq 'DRIVE9_INSTALL_DIR') { "DRIVE9_INSTALL_DIR='" + $value + "'" } else { $Label + " '" + $value + "'" }
+        Fail ($subject + ' is not an allowed install directory' + $detail + '. Allowed directories: ' + ((Get-AllowedInstallDirs) -join ', ') + '. Remove the link, or set DRIVE9_INSTALL_DIR to an allowlisted directory.')
     }
 
     return (ConvertTo-NormalizedDir $value)
@@ -338,13 +343,14 @@ function Resolve-InstallDir() {
             return
         }
 
-        $script:InstallDir = ConvertTo-NormalizedDir $DefaultInstallDir
         Write-WarnMessage "drive9 currently resolves to $($existing.Source), which is outside the supported install directories"
-        Write-WarnMessage "Installing to $InstallDir instead; remove the other copy to avoid PATH shadowing"
-        return
+        Write-WarnMessage "Installing to the default directory instead; remove the other copy to avoid PATH shadowing"
     }
 
-    $script:InstallDir = ConvertTo-NormalizedDir $DefaultInstallDir
+    # The default destination is validated like any other: an allowlisted
+    # spelling that resolves outside the profile must never be probed, written,
+    # or persisted, no matter which branch selected it.
+    $script:InstallDir = Resolve-SafeInstallDir $DefaultInstallDir 'the default install directory'
     Write-Info "Install dir: $InstallDir"
 }
 

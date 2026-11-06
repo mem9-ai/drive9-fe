@@ -14,7 +14,7 @@ $DefaultInstallDir = Join-Path $localAppData "drive9"
 foreach ($name in @(
         "Get-AllowedInstallDirs", "Get-TrustedInstallRoots", "Resolve-PhysicalDir",
         "Resolve-PhysicalDirOnce", "ConvertTo-NormalizedDir", "ConvertTo-NormalizedDirOrNull",
-        "Test-AllowedInstallDir", "Resolve-SafeInstallDir", "Add-ToUserPath")) {
+        "Test-AllowedInstallDir", "Resolve-SafeInstallDir", "Resolve-InstallDir", "Add-ToUserPath")) {
     $function = $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true) |
         Where-Object { $_.Name -eq $name }
     if (@($function).Count -ne 1) { throw "Missing or ambiguous $name function" }
@@ -22,8 +22,12 @@ foreach ($name in @(
 }
 
 $script:warnings = @()
+$script:info = @()
 function Fail($Message) { throw "installer rejected: $Message" }
 function Write-WarnMessage($Message) { $script:warnings += $Message }
+function Write-Info($Message) { $script:info += $Message }
+# Deterministic default-branch selection regardless of what is on PATH.
+function Get-ActiveDrive9Command { return $null }
 
 $sep = [System.IO.Path]::DirectorySeparatorChar
 $failures = @()
@@ -171,6 +175,131 @@ Check "accepts an allowlisted directory under a redirected profile" {
         Assert-True "redirected profile" (Test-AllowedInstallDir $bin)
     } finally {
         Set-Variable -Name HOME -Value $originalHome -Force
+        Remove-ProfileSandbox $box.Sandbox
+    }
+}
+
+Check "validates the default destination before probing or installing" {
+    $box = New-ProfileSandbox
+    $originalHome = $HOME
+    $originalLocalAppData = $localAppData
+    $originalDefault = $DefaultInstallDir
+    $originalEnv = $env:DRIVE9_INSTALL_DIR
+    try {
+        $localAppData = Join-Path $box.Sandbox "localappdata"
+        New-Item -ItemType Directory -Path $localAppData -Force | Out-Null
+        $DefaultInstallDir = Join-Path $localAppData "drive9"
+        Set-Variable -Name HOME -Value $box.Inside -Force
+        Remove-Item Env:DRIVE9_INSTALL_DIR -ErrorAction SilentlyContinue
+
+        Resolve-InstallDir
+        if ($script:InstallDir -ine (ConvertTo-NormalizedDir $DefaultInstallDir)) {
+            throw "default branch selected $($script:InstallDir)"
+        }
+        Assert-True "default destination" (Test-AllowedInstallDir $script:InstallDir)
+    } finally {
+        Set-Variable -Name HOME -Value $originalHome -Force
+        $localAppData = $originalLocalAppData
+        $DefaultInstallDir = $originalDefault
+        if ($null -ne $originalEnv) { $env:DRIVE9_INSTALL_DIR = $originalEnv }
+        Remove-ProfileSandbox $box.Sandbox
+    }
+}
+
+Check "rejects a default destination that links outside the profile" {
+    $box = New-ProfileSandbox
+    $originalHome = $HOME
+    $originalLocalAppData = $localAppData
+    $originalDefault = $DefaultInstallDir
+    $originalEnv = $env:DRIVE9_INSTALL_DIR
+    try {
+        $localAppData = Join-Path $box.Sandbox "localappdata"
+        New-Item -ItemType Directory -Path $localAppData -Force | Out-Null
+        $DefaultInstallDir = Join-Path $localAppData "drive9"
+        Set-Variable -Name HOME -Value $box.Inside -Force
+        Remove-Item Env:DRIVE9_INSTALL_DIR -ErrorAction SilentlyContinue
+        if (-not (New-ReparseLink $DefaultInstallDir $box.Outside)) {
+            Write-Host "skip: directory symlinks are not permitted here"
+            return
+        }
+        Assert-Rejects "escaping default" { Resolve-InstallDir } "default install directory"
+    } finally {
+        Set-Variable -Name HOME -Value $originalHome -Force
+        $localAppData = $originalLocalAppData
+        $DefaultInstallDir = $originalDefault
+        if ($null -ne $originalEnv) { $env:DRIVE9_INSTALL_DIR = $originalEnv }
+        Remove-ProfileSandbox $box.Sandbox
+    }
+}
+
+Check "rejects a link chain that ends outside the profile" {
+    $box = New-ProfileSandbox
+    $originalHome = $HOME
+    $links = @()
+    try {
+        Set-Variable -Name HOME -Value $box.Inside -Force
+        $previous = $box.Outside
+        for ($i = 1; $i -le 8; $i++) {
+            $link = Join-Path $HOME ("l" + $i)
+            if (-not (New-ReparseLink $link $previous)) {
+                Write-Host "skip: directory symlinks are not permitted here"
+                return
+            }
+            $links += $link
+            $previous = $link
+        }
+        $bin = Join-Path $HOME "bin"
+        if (-not (New-ReparseLink $bin $previous)) {
+            Write-Host "skip: directory symlinks are not permitted here"
+            return
+        }
+        $links += $bin
+        # $HOME/bin -> l8 -> ... -> l1 -> outside
+        Assert-False "chain" (Test-AllowedInstallDir $bin)
+        Assert-Rejects "chain" { Resolve-SafeInstallDir $bin } "not an allowed install directory"
+    } finally {
+        Set-Variable -Name HOME -Value $originalHome -Force
+        foreach ($link in $links) { Remove-Item -LiteralPath $link -Force -ErrorAction SilentlyContinue }
+        Remove-ProfileSandbox $box.Sandbox
+    }
+}
+
+Check "fails closed when a link chain exceeds the traversal bound" {
+    $box = New-ProfileSandbox
+    $originalHome = $HOME
+    $links = @()
+    try {
+        Set-Variable -Name HOME -Value $box.Inside -Force
+        $previous = $box.Inside
+        for ($i = 1; $i -le 40; $i++) {
+            $link = Join-Path $box.Inside ("deep" + $i)
+            if (-not (New-ReparseLink $link $previous)) {
+                Write-Host "skip: directory symlinks are not permitted here"
+                return
+            }
+            $links += $link
+            $previous = $link
+        }
+        $bin = Join-Path $HOME "bin"
+        if (-not (New-ReparseLink $bin $previous)) {
+            Write-Host "skip: directory symlinks are not permitted here"
+            return
+        }
+        $links += $bin
+        Assert-False "over-long chain" (Test-AllowedInstallDir $bin)
+        Assert-Rejects "over-long chain" { Resolve-SafeInstallDir $bin } "not an allowed install directory"
+        # The bound itself must fail closed rather than return the last hop.
+        $resolverThrew = $false
+        try {
+            Resolve-PhysicalDir $bin | Out-Null
+        } catch {
+            if ($_.Exception.Message -notmatch "did not resolve after 32 passes") { throw }
+            $resolverThrew = $true
+        }
+        if (-not $resolverThrew) { throw "resolver returned an intermediate hop instead of failing" }
+    } finally {
+        Set-Variable -Name HOME -Value $originalHome -Force
+        foreach ($link in $links) { Remove-Item -LiteralPath $link -Force -ErrorAction SilentlyContinue }
         Remove-ProfileSandbox $box.Sandbox
     }
 }

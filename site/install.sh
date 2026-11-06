@@ -151,25 +151,29 @@ strip_trailing_slashes() {
   printf '%s\n' "$_path"
 }
 
-# canonicalize_dir resolves symlinks for the deepest existing component so a
-# path such as "$HOME/link-to-etc" cannot alias an unlisted directory.
+# canonicalize_dir resolves the deepest existing ancestor of a path and appends
+# the components that do not exist yet, so a candidate and the trusted root are
+# always compared in the same physical namespace. That matters for a fresh
+# install under a symlinked $HOME, where neither the leaf nor its parent exists.
 canonicalize_dir() {
-  _target="$1"
-  if [ -d "$_target" ]; then
-    _physical=$(cd -P "$_target" && pwd -P) || _physical="$_target"
-    printf '%s\n' "$_physical"
-    return 0
-  fi
+  _target=$(strip_trailing_slashes "$1")
+  _suffix=""
+  _probe="$_target"
+  while [ ! -d "$_probe" ]; do
+    _parent=$(dirname "$_probe")
+    if [ "$_parent" = "$_probe" ]; then
+      printf '%s\n' "$_target"
+      return 0
+    fi
+    _suffix="/$(basename "$_probe")${_suffix}"
+    _probe="$_parent"
+  done
 
-  _parent=$(dirname "$_target")
-  _base=$(basename "$_target")
-  if [ -d "$_parent" ]; then
-    _physical_parent=$(cd -P "$_parent" && pwd -P) || _physical_parent="$_parent"
-    printf '%s/%s\n' "${_physical_parent%/}" "$_base"
-    return 0
-  fi
-
-  printf '%s\n' "$_target"
+  _physical=$(cd -P "$_probe" && pwd -P) || _physical="$_probe"
+  case "$_suffix" in
+    "") printf '%s\n' "$_physical" ;;
+    *) printf '%s%s\n' "${_physical%/}" "$_suffix" ;;
+  esac
 }
 
 # is_user_managed_dir matches the allowlisted spellings, both relative to $HOME
@@ -242,6 +246,16 @@ validate_requested_install_dir() {
   printf '%s\n' "$_requested"
 }
 
+# Every selected destination, including the literal default, goes through the
+# same policy before anything is probed or written.
+select_default_install_dir() {
+  if ! is_install_dir_safe "$DEFAULT_INSTALL_DIR"; then
+    _resolved=$(canonicalize_dir "$DEFAULT_INSTALL_DIR")
+    error "The default install directory ${DEFAULT_INSTALL_DIR} is not usable.\n  Resolved: ${_resolved}\n  Allowed:  $(allowed_install_dirs)\n  Set DRIVE9_INSTALL_DIR to an allowlisted directory and rerun the installer."
+  fi
+  INSTALL_DIR="$DEFAULT_INSTALL_DIR"
+}
+
 resolve_install_dir() {
   if [ -n "${DRIVE9_INSTALL_DIR:-}" ]; then
     INSTALL_DIR=$(validate_requested_install_dir "$DRIVE9_INSTALL_DIR")
@@ -264,13 +278,13 @@ resolve_install_dir() {
       return
     fi
 
-    INSTALL_DIR="$DEFAULT_INSTALL_DIR"
+    select_default_install_dir
     warn "drive9 currently resolves to ${EXISTING}"
     warn "Installing to ${INSTALL_DIR}; set DRIVE9_INSTALL_DIR=${EXISTING_DIR} to replace the active binary"
     return
   fi
 
-  INSTALL_DIR="$DEFAULT_INSTALL_DIR"
+  select_default_install_dir
   info "Install dir: ${INSTALL_DIR}"
 }
 
