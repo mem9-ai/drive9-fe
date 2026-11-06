@@ -7,7 +7,7 @@ const sourceRepository = 'https://github.com/mem9-ai/tidb.ai';
 const studioConfig = '{"apiOrigin":"","apiPathPrefix":"/studio"}\n';
 
 export function studioPublicFile(path) {
-  return /^(index\.html|config\.json|favicon\.svg|robots\.txt|sitemap\.xml|llms\.txt|discover\/(?:index\.html|(?:get-started|analyze-sales-data|api|privacy)\/index\.html)|assets\/[\w.-]+\.(js|mjs|css|woff2)|skills\/drive9-workspace\/(?:SKILL\.md|install\.py|report\.py|private_csv\.py))$/.test(path);
+  return /^(index\.html|config\.json|favicon\.svg|robots\.txt|sitemap\.xml|llms\.txt|discover\/(?:index\.html|(?:get-started|analyze-sales-data|api|privacy)\/index\.html)|assets\/[\w.-]+\.(js|mjs|css|woff2)|skills\/drive9-workspace\/(?:SKILL\.md|private-csv\.md|workspace-api\.md|install\.py|report\.py|private_csv\.py))$/.test(path);
 }
 
 export async function studioHashes(directory, prefix = '') {
