@@ -18,13 +18,27 @@ For the Studio free-trial prompt or a request to continue its sales report, use 
 **Saved report (`synced`).** Lead with the finding and its calculation in one sentence. Give the clickable `studioUrl` (“View report in Studio”) and a single “Local Markdown” link using the absolute `report` path. Describe the Studio link as read-only to anyone with the link until the original expiry in the user's timezone. Use descriptive labels so internal paths stay out of the reply.
 
 - **Version 1:** End with one question the user can accept right here, naming the leading state: “Want me to add California’s top product and its share of the state’s sales to this report?” Wait for their answer. A “yes”, “好” or equivalent in context means run `products` in this same project. No copy/paste, tool switch or repeated setup is needed.
-- **Version 2 (including reopening a completed report):** Give the verified product, sales and share. On an update, tell the user the finding is now in the same report and return the original Studio link. On a reopen, describe what is already there. The sample analysis is complete. Offer one useful next question in the same chat: “Want to see what share of sales comes from the top two states?” On acceptance, add the top two amounts from the verified state rankings and divide by total sales. Give the calculation in chat. If they ask for their own data, use the private workflow.
+- **Version 2 (including reopening a completed report):** Give the verified product, sales and share. On an update, tell the user the finding is now in the same report and return the original Studio link. On a reopen, describe what is already there. The sample analysis is complete. Offer the two in-chat choices below when the user has not already asked a follow-up. If a user accepts an earlier invitation to compare the top two states, calculate it immediately.
 - **Switching agents:** Only when the user wants a handoff, give one portable prompt for another local agent in the same project: “Follow https://drive9.ai/studio/skills/drive9-workspace/SKILL.md to continue my Drive9 sales report in this project and add the top product in the leading state.” The first-version Studio report also offers a copyable follow-up.
 - If an older helper returns `synced` without `studioUrl`, update it once with the official installer and repeat the same command in the same project. Only show a Studio link returned by the helper.
 
 **Local or unavailable report.** For `local-only`, link the actual local file, explain what prevented a confirmed remote save, and give the recovery step from the helper's message. For `expired` or `forgotten`, offer the retained Markdown if available. Access expires 48 hours after registration. The next invocation for this project clears an expired key; `forget` removes it early. Only run `new` when the user explicitly requests a separate trial after expiry or removal.
 
 When the task calls for an existing customer Workspace or spending, explain that a trial grants neither. Keep using the following authenticated API flow for existing customer integrations.
+
+## In-chat choices
+
+At a missing-file prompt, when the user is stuck on what to do next, or after the completed sample, offer one question in their language: “What would you like to do next?” Use the agent host’s native choice picker when available. Otherwise show the same numbered options in chat and invite a number, a label, or a file:
+
+1. **Compare the top two states** — see their share of total sales in the public sample.
+2. **Use my sales CSV** — continue with my saved data, or attach a CSV here.
+
+Wait for a selection. Accept a click, “1” or “2”, the option in the user’s words, or an attached/named CSV. A highlighted default is not a selection.
+
+- **Sample:** Calculate the two largest state amounts together as a share of total sales. Use the verified public figures already in the conversation or saved sample report. If the figures are missing, use the free public sales report workflow to obtain them. Give the calculation in chat and label it as the public sample.
+- **My CSV:** Use the selected file or resume the project’s existing private CSV. If the source is still missing, say “Attach your CSV here, or tell me its filename.” A file supplied with the selection is enough to proceed. Do not show the menu again while waiting for the file.
+
+Skip the picker for a selected file, a usable saved source on a continuation request, an explicit sample request, or the copied Studio question with a usable fallback. Proceed with the request. A problem reading an existing file calls for recovery of that file.
 
 ## My own CSV, without an account
 
@@ -33,7 +47,7 @@ If no file was selected and the private state directory (`~/.drive9/private-csv/
 - **File selected.** An attachment, a file reference or an unambiguous filename in the project is a selection. Resolve it yourself and run `upload <path>`. For a filename, look only for that name in the project; if several match, let the user choose by short folder name. Never pick a different file or scan the project for upload candidates. The first upload opens a private 24-hour Workspace.
 - **No file selected.** Resume the saved CSV in this project. On `needs-file`, follow the user's request in the language of the conversation:
   - For the sales question copied from Studio, answer it immediately using the public figures in the prompt. Show the calculation, label it as the public sample, and finish with “To compare your sales, attach a CSV here or tell me its filename.” Give the answer in chat without starting a public trial or changing the saved report. If the user asks only for the sample, go straight to those figures.
-  - For a request specifically about the user's own data, say “Attach your sales CSV here, or tell me its filename. You can also say ‘use the sample’ to try this first.” Wait for their choice. An explicit sample choice runs the public workflow if there are no sample figures in context.
+  - When a private request is stuck waiting for a file, offer the in-chat choices above. If the user has already selected “Use my sales CSV” from that menu, just invite the attachment or filename.
   - Keep credential state and path syntax out of the handoff. Explain a size or encoding limit only if it actually blocks the selected file. A failed resume of an existing source is a recovery case; report it rather than silently switching data.
 - **Continue.** Run `resume` without a path, including in another local agent in the same project. Use the returned absolute `source` path for the requested analysis. The helper checks the current remote file, restores a missing local copy and reuses unchanged content. Reopening a completed report is a read.
 - **Report.** Answer the user's question using the selected data. Save or update the project's local Markdown report, then return a clickable local file link. Keep private results out of public sample links. For a failed or missing upload, report what actually succeeded.
