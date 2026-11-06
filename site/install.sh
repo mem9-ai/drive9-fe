@@ -126,13 +126,7 @@ verify_checksum() {
   info "Verified SHA-256 of ${_name}"
 }
 
-is_user_managed_dir() {
-  [ -n "${HOME:-}" ] || return 1
-  case "$1" in
-    "$HOME/.local/bin"|"$HOME/.cargo/bin"|"$HOME/bin"|"$HOME/.drive9/bin") return 0 ;;
-    *) return 1 ;;
-  esac
-}
+HOME_SUBDIRS=".local/bin bin .cargo/bin .drive9/bin"
 
 is_system_install_dir() {
   case "$1" in
@@ -141,8 +135,20 @@ is_system_install_dir() {
   esac
 }
 
-is_allowed_install_dir() {
-  is_user_managed_dir "$1" || is_system_install_dir "$1"
+# physical_home prints the directory $HOME really points at, so a home directory
+# that is itself a symlink (or sits below one) is handled consistently. A $HOME
+# that does not exist yet resolves through its deepest existing parent.
+physical_home() {
+  [ -n "${HOME:-}" ] || return 1
+  canonicalize_dir "$HOME"
+}
+
+strip_trailing_slashes() {
+  _path="$1"
+  while [ "$_path" != "/" ] && [ "${_path%/}" != "$_path" ]; do
+    _path="${_path%/}"
+  done
+  printf '%s\n' "$_path"
 }
 
 # canonicalize_dir resolves symlinks for the deepest existing component so a
@@ -166,38 +172,79 @@ canonicalize_dir() {
   printf '%s\n' "$_target"
 }
 
+# is_user_managed_dir matches the allowlisted spellings, both relative to $HOME
+# and relative to the directory $HOME physically points at.
+is_user_managed_dir() {
+  [ -n "${HOME:-}" ] || return 1
+  _home_root=$(physical_home) || return 1
+  for _subdir in $HOME_SUBDIRS; do
+    if [ "$1" = "${HOME}/${_subdir}" ] || [ "$1" = "${_home_root}/${_subdir}" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+is_allowed_install_dir() {
+  is_user_managed_dir "$1" || is_system_install_dir "$1"
+}
+
+# is_install_dir_safe is the destination policy: the directory must be spelled
+# as an allowlisted location, and a user-managed location must resolve to a
+# physical path inside the user's own home tree. That keeps a legitimately
+# symlinked home (or a symlinked $HOME/.local/bin pointing inside $HOME)
+# working, while a link at or below the allowlisted leaf that escapes $HOME is
+# refused. System directories are root-owned and matched literally.
+is_install_dir_safe() {
+  _dir=$(strip_trailing_slashes "$1")
+  case "$_dir" in
+    /*) ;;
+    *) return 1 ;;
+  esac
+  is_system_install_dir "$_dir" && return 0
+  is_user_managed_dir "$_dir" || return 1
+
+  _home_root=$(physical_home) || return 1
+  _physical=$(canonicalize_dir "$_dir")
+  case "$_physical" in
+    "${_home_root}"/*) return 0 ;;
+  esac
+  return 1
+}
+
 allowed_install_dirs() {
   _dirs="/usr/local/bin, /opt/drive9"
   if [ -n "${HOME:-}" ]; then
     _dirs="${HOME}/.local/bin, ${HOME}/bin, ${HOME}/.cargo/bin, ${HOME}/.drive9/bin, ${_dirs}"
+    _home_root=$(physical_home) || _home_root=""
+    if [ -n "${_home_root}" ] && [ "${_home_root}" != "${HOME}" ]; then
+      _dirs="${_home_root}/.local/bin, ${_home_root}/bin, ${_home_root}/.cargo/bin, ${_home_root}/.drive9/bin, ${_dirs}"
+    fi
   fi
   printf '%s\n' "$_dirs"
 }
 
+validate_requested_install_dir() {
+  _requested=$(strip_trailing_slashes "$1")
+  # Only control characters are refused outright: they cannot appear in a real
+  # install path and would corrupt the reported lines.
+  if [ "$(printf '%s' "$_requested" | tr -d '[:cntrl:]')" != "$_requested" ]; then
+    error "DRIVE9_INSTALL_DIR contains control characters."
+  fi
+  case "$_requested" in
+    /*) ;;
+    *) error "DRIVE9_INSTALL_DIR must be an absolute path (got '${_requested}')." ;;
+  esac
+  if ! is_install_dir_safe "$_requested"; then
+    _resolved=$(canonicalize_dir "$_requested")
+    error "DRIVE9_INSTALL_DIR='${_requested}' is not a safe install directory.\n  Resolved: ${_resolved}\n  Allowed:  $(allowed_install_dirs)\n  A user directory must resolve inside ${HOME} (or wherever it physically lives); a symlink that leads elsewhere is refused."
+  fi
+  printf '%s\n' "$_requested"
+}
+
 resolve_install_dir() {
   if [ -n "${DRIVE9_INSTALL_DIR:-}" ]; then
-    _requested="$DRIVE9_INSTALL_DIR"
-    case "$_requested" in
-      /*) ;;
-      *) error "DRIVE9_INSTALL_DIR must be an absolute path (got '${_requested}')." ;;
-    esac
-    # Only control characters are refused outright: they cannot appear in a real
-    # install path and would corrupt the reported lines. Everything else is safe
-    # because the value is always quoted, passed with `--`, and compared against
-    # the allowlist below after canonicalisation (which also resolves "..").
-    if [ "$(printf '%s' "$_requested" | tr -d '[:cntrl:]')" != "$_requested" ]; then
-      error "DRIVE9_INSTALL_DIR contains control characters."
-    fi
-
-    _resolved=$(canonicalize_dir "$_requested")
-    if ! is_allowed_install_dir "$_resolved"; then
-      if [ "$_resolved" != "$_requested" ]; then
-        error "DRIVE9_INSTALL_DIR='${_requested}' resolves to '${_resolved}', which is not an allowed install directory.\n  Allowed directories: $(allowed_install_dirs)"
-      fi
-      error "DRIVE9_INSTALL_DIR='${_requested}' is not an allowed install directory.\n  Allowed directories: $(allowed_install_dirs)"
-    fi
-
-    INSTALL_DIR="$_resolved"
+    INSTALL_DIR=$(validate_requested_install_dir "$DRIVE9_INSTALL_DIR")
     info "Install dir: ${INSTALL_DIR} (from DRIVE9_INSTALL_DIR)"
     return
   fi
@@ -205,7 +252,13 @@ resolve_install_dir() {
   EXISTING=$(command -v drive9 2>/dev/null || true)
   if [ -n "$EXISTING" ] && [ -x "$EXISTING" ]; then
     EXISTING_DIR=$(dirname "$EXISTING")
-    if is_user_managed_dir "$EXISTING_DIR"; then
+    if is_allowed_install_dir "$EXISTING_DIR"; then
+      # The active binary can be reached through an allowlisted spelling that is
+      # a symlink; it must pass the same physical check as an explicit request
+      # before the old-version probe runs or anything is written.
+      if ! is_install_dir_safe "$EXISTING_DIR"; then
+        error "The active drive9 resolves to ${EXISTING}, which is an allowlisted location that points outside your home directory.\n  Resolved: $(canonicalize_dir "$EXISTING_DIR")\n  Allowed:  $(allowed_install_dirs)\n  Remove that copy (or the symlink) and rerun the installer."
+      fi
       INSTALL_DIR="$EXISTING_DIR"
       info "Upgrading active drive9 in ${INSTALL_DIR}"
       return

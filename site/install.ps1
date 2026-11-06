@@ -147,25 +147,91 @@ function Get-ActiveDrive9Command() {
 # The only directories drive9 may be installed into. Everything below validates
 # against this list: an inherited DRIVE9_INSTALL_DIR must not be able to choose
 # the directory that is written to or appended to the persistent user PATH.
+function Resolve-PhysicalDirOnce($Path) {
+    $full = ConvertTo-NormalizedDir $Path
+    $root = [System.IO.Path]::GetPathRoot($full)
+    if ([string]::IsNullOrEmpty($root)) {
+        return $full
+    }
+
+    $parts = @(($full.Substring($root.Length)) -split '[\\/]' | Where-Object { $_ -ne '' })
+    $current = $root
+    foreach ($part in $parts) {
+        $next = Join-Path $current $part
+        if (-not (Test-Path -LiteralPath $next)) {
+            # Nothing below a missing component exists yet, so there is nothing
+            # left to resolve; keep the remainder as spelled.
+            $current = $next
+            continue
+        }
+
+        $item = Get-Item -LiteralPath $next -Force -ErrorAction SilentlyContinue
+        if ($item -and $item.LinkType) {
+            # Junction, SymbolicLink or HardLink: follow the reparse point.
+            $target = $item.Target
+            if ($target -is [array]) { $target = $target[0] }
+            if (-not [string]::IsNullOrEmpty($target)) {
+                if (-not [System.IO.Path]::IsPathRooted($target)) { $target = Join-Path $current $target }
+                $next = [System.IO.Path]::GetFullPath($target)
+            }
+        }
+        $current = $next
+    }
+    return (ConvertTo-NormalizedDir $current)
+}
+
+# GetFullPath only normalizes the string; it does not follow junctions or
+# symlinks. Resolve the reparse points of every existing component so the
+# destination policy is applied to the directory that is actually written to.
+function Resolve-PhysicalDir($Path) {
+    $current = ConvertTo-NormalizedDir $Path
+    for ($pass = 0; $pass -lt 8; $pass++) {
+        $next = Resolve-PhysicalDirOnce $current
+        if ($next -ieq $current) {
+            break
+        }
+        $current = $next
+    }
+    return $current
+}
+
+# The only directories drive9 may be installed into, spelled both relative to the
+# configured root and relative to the directory that root physically points at.
 function Get-AllowedInstallDirs {
-    $allowed = @()
-    try {
-        $allowed += [System.IO.Path]::GetFullPath($DefaultInstallDir)
-    } catch {
+    $dirs = @()
+    $pairs = @()
+    if ($localAppData) {
+        $pairs += , @('drive9', $localAppData)
+        $pairs += , @('Programs\drive9', $localAppData)
     }
     if ($HOME) {
-        try {
-            $allowed += [System.IO.Path]::GetFullPath((Join-Path $HOME "bin"))
-        } catch {
+        $pairs += , @('bin', $HOME)
+    }
+
+    foreach ($pair in $pairs) {
+        $suffix = $pair[0]
+        $root = $pair[1]
+        foreach ($base in @($root, (Resolve-PhysicalDir $root))) {
+            if ([string]::IsNullOrWhiteSpace($base)) { continue }
+            try {
+                $dirs += ConvertTo-NormalizedDir (Join-Path $base $suffix)
+            } catch {
+            }
         }
     }
-    if ($localAppData) {
-        try {
-            $allowed += [System.IO.Path]::GetFullPath((Join-Path $localAppData "Programs\drive9"))
-        } catch {
-        }
+    return @($dirs | Select-Object -Unique)
+}
+
+# Roots a user-managed destination must physically stay inside: the user's own
+# profile and local app data, resolved through any reparse points.
+function Get-TrustedInstallRoots {
+    $roots = @()
+    foreach ($candidate in @($localAppData, $HOME)) {
+        if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+        try { $roots += ConvertTo-NormalizedDir $candidate } catch { }
+        try { $roots += Resolve-PhysicalDir $candidate } catch { }
     }
-    return $allowed
+    return @($roots | Select-Object -Unique)
 }
 
 function ConvertTo-NormalizedDir($Path) {
@@ -177,21 +243,38 @@ function ConvertTo-NormalizedDir($Path) {
     return $trimmed
 }
 
+# A destination is accepted only when it is spelled as an allowlisted location
+# AND resolves to a physical path inside the user's own profile tree. A junction
+# or symlink at or below the allowlisted leaf that leads elsewhere is refused;
+# a profile directory that is itself redirected (roaming profile, junctioned
+# $HOME) still works because the root is resolved too.
 function Test-AllowedInstallDir($Path) {
     if ([string]::IsNullOrWhiteSpace($Path)) {
         return $false
     }
 
     try {
-        $normalized = ConvertTo-NormalizedDir $Path
+        $spelled = ConvertTo-NormalizedDir $Path
+        $physical = Resolve-PhysicalDir $spelled
     } catch {
         return $false
     }
 
+    $spellingAllowed = $false
     foreach ($allowed in Get-AllowedInstallDirs) {
-        if ($normalized -ieq (ConvertTo-NormalizedDir $allowed)) {
-            return $true
+        if ($spelled -ieq $allowed) {
+            $spellingAllowed = $true
+            break
         }
+    }
+    if (-not $spellingAllowed) {
+        return $false
+    }
+
+    $separator = [System.IO.Path]::DirectorySeparatorChar
+    foreach ($root in Get-TrustedInstallRoots) {
+        if ($physical -ieq $root) { return $true }
+        if ($physical.StartsWith($root + $separator, [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
     }
     return $false
 }
@@ -219,7 +302,13 @@ function Resolve-SafeInstallDir($Requested) {
     }
 
     if (-not (Test-AllowedInstallDir $value)) {
-        Fail ("DRIVE9_INSTALL_DIR='" + $value + "' is not an allowed install directory. Allowed directories: " + ((Get-AllowedInstallDirs) -join ", "))
+        $physical = $null
+        try { $physical = Resolve-PhysicalDir $value } catch { }
+        $detail = ''
+        if ($physical -and ($physical -ine (ConvertTo-NormalizedDir $value))) {
+            $detail = '; it resolves to ' + $physical
+        }
+        Fail ("DRIVE9_INSTALL_DIR='" + $value + "' is not an allowed install directory" + $detail + ". Allowed directories: " + ((Get-AllowedInstallDirs) -join ", "))
     }
 
     return (ConvertTo-NormalizedDir $value)

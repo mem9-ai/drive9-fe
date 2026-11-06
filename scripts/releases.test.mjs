@@ -33,8 +33,14 @@ const newPayload = '#!/bin/sh\necho drive9 new\n';
 
 // Runs site/install.sh with mocked `uname` and `curl` binaries, so no network
 // request leaves the test and nothing outside the fixture is touched.
-// installDir: 'allowlisted' ($HOME/.local/bin), 'non-allowlisted' (outside the
-// allowlist) or 'symlinked' (allowlisted path that resolves elsewhere).
+// installDir:
+//   'allowlisted'          -> $HOME/.local/bin (the default destination)
+//   'non-allowlisted'      -> a directory outside every allowlisted location
+//   'symlinked'            -> allowlisted path that resolves outside $HOME
+//   'symlink-inside-home'  -> allowlisted path that resolves inside $HOME
+//   'home-symlinked'       -> $HOME itself is a symlink to the real profile
+//   'unset'                -> DRIVE9_INSTALL_DIR unset, drive9 found on PATH
+//   'unset-escaping'       -> same, but through an allowlisted alias to outside
 async function runShellInstaller(t, {
   os = 'Linux',
   arch = 'x86_64',
@@ -47,27 +53,63 @@ async function runShellInstaller(t, {
   const root = await mkdtemp(join(tmpdir(), 'drive9-install-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   for (const name of ['tools', 'tmp']) await mkdir(join(root, name));
-  const homeDir = join(root, homeName);
-  await mkdir(homeDir);
+
+  const realHomeDir = join(root, homeName);
+  await mkdir(realHomeDir);
+  let homeDir = realHomeDir;
+  if (installDir === 'home-symlinked') {
+    homeDir = join(root, 'home-link');
+    await symlink(realHomeDir, homeDir);
+  }
 
   const homeBin = join(homeDir, '.local', 'bin');
+  const outside = join(root, 'outside');
   let targetDir;
-  if (installDir === 'non-allowlisted') {
-    targetDir = join(root, 'install');
-    await mkdir(targetDir);
-  } else if (installDir === 'symlinked') {
-    const outside = join(root, 'outside');
-    await mkdir(join(homeDir, '.local'), { recursive: true });
-    await mkdir(outside);
-    await symlink(outside, homeBin);
-    targetDir = homeBin;
-  } else {
-    await mkdir(homeBin, { recursive: true });
-    targetDir = homeBin;
+  let installDirEnv = true;
+  let pathPrefix = '';
+
+  switch (installDir) {
+    case 'non-allowlisted':
+      targetDir = join(root, 'install');
+      await mkdir(targetDir);
+      break;
+    case 'symlinked':
+      await mkdir(join(homeDir, '.local'), { recursive: true });
+      await mkdir(outside);
+      await symlink(outside, homeBin);
+      targetDir = homeBin;
+      break;
+    case 'symlink-inside-home':
+      await mkdir(join(homeDir, '.local'), { recursive: true });
+      await mkdir(join(realHomeDir, 'dotfiles'));
+      await symlink(join(realHomeDir, 'dotfiles'), homeBin);
+      targetDir = homeBin;
+      break;
+    case 'unset':
+      await mkdir(homeBin, { recursive: true });
+      await writeFile(join(homeBin, 'drive9'), oldPayload, { mode: 0o755 });
+      targetDir = homeBin;
+      installDirEnv = false;
+      pathPrefix = homeBin;
+      break;
+    case 'unset-escaping':
+      await mkdir(join(homeDir, '.local'), { recursive: true });
+      await mkdir(outside);
+      await writeFile(join(outside, 'drive9'), oldPayload, { mode: 0o755 });
+      await symlink(outside, homeBin);
+      targetDir = outside;
+      installDirEnv = false;
+      pathPrefix = homeBin;
+      break;
+    default:
+      await mkdir(homeBin, { recursive: true });
+      targetDir = homeBin;
   }
 
   const target = join(targetDir, 'drive9');
-  await writeFile(target, oldPayload, { mode: 0o755 });
+  if (installDir !== 'unset' && installDir !== 'unset-escaping') {
+    await writeFile(target, oldPayload, { mode: 0o755 });
+  }
 
   const sha = createHash('sha256').update(newPayload).digest('hex');
   const manifest = checksums === 'missing-manifest' ? null
@@ -97,20 +139,20 @@ if (url === ${JSON.stringify(`${releaseBase}/`)} + ${JSON.stringify(artifact)}) 
 process.exit(22);
 `, { mode: 0o755 });
 
+  const searchPath = `${pathPrefix ? pathPrefix + ':' : ''}${join(root, 'tools')}:/usr/bin:/bin`;
+  const env = {
+    ...process.env,
+    PATH: searchPath,
+    HOME: homeDir,
+    TMPDIR: join(root, 'tmp'),
+  };
+  if (installDirEnv) {
+    env.DRIVE9_INSTALL_DIR = targetDir;
+  }
+
   let error;
   try {
-    await exec('/bin/sh', [new URL('install.sh', site).pathname], {
-      // The Netlify build test restricts its own PATH to Node. This shell
-      // fixture also needs standard Unix utilities, with our mocks first.
-      env: {
-        ...process.env,
-        PATH: `${join(root, 'tools')}:/usr/bin:/bin`,
-        HOME: homeDir,
-        TMPDIR: join(root, 'tmp'),
-        DRIVE9_INSTALL_DIR: targetDir,
-      },
-      timeout: 10_000,
-    });
+    await exec('/bin/sh', [new URL('install.sh', site).pathname], { env, timeout: 10_000 });
   } catch (cause) {
     error = cause;
   }
@@ -180,10 +222,36 @@ for (const homeName of ['home with spaces', "home's & co"]) {
   });
 }
 
+test('shell installer accepts an allowlisted directory under a symlinked home', async t => {
+  const { error, root, target } = await runShellInstaller(t, { installDir: 'home-symlinked' });
+  assert.equal(Boolean(error), false, error?.stderr);
+  assert.equal(await readFile(target, 'utf8'), newPayload);
+  assert.ok(existsSync(join(root, 'home', '.local', 'bin', 'drive9')), 'the real profile must hold the binary');
+});
+
+test('shell installer accepts an allowlisted directory that links inside the profile', async t => {
+  const { error, target } = await runShellInstaller(t, { installDir: 'symlink-inside-home' });
+  assert.equal(Boolean(error), false, error?.stderr);
+  assert.equal(await readFile(target, 'utf8'), newPayload);
+});
+
+test('shell installer upgrades a drive9 found on PATH in an allowlisted directory', async t => {
+  const { error, target } = await runShellInstaller(t, { installDir: 'unset' });
+  assert.equal(Boolean(error), false, error?.stderr);
+  assert.equal(await readFile(target, 'utf8'), newPayload);
+});
+
+test('shell installer refuses to upgrade through an allowlisted alias that escapes the profile', async t => {
+  const { error, target } = await runShellInstaller(t, { installDir: 'unset-escaping' });
+  assert.ok(error, 'installer must not write through an escaping alias');
+  assert.match(String(error.stderr), /points outside your home directory/);
+  assert.equal(await readFile(target, 'utf8'), oldPayload, 'the aliased directory must be left untouched');
+});
+
 test('shell installer refuses a DRIVE9_INSTALL_DIR outside the allowlist', async t => {
   const { error, target, requests } = await runShellInstaller(t, { installDir: 'non-allowlisted' });
   assert.ok(error, 'installer must reject a non-allowlisted install directory');
-  assert.match(String(error.stderr), /not an allowed install directory/);
+  assert.match(String(error.stderr), /not a safe install directory/);
   assert.equal(requests.length, 0, 'the install directory must be validated before any request');
   assert.equal(await readFile(target, 'utf8'), oldPayload, 'nothing may be installed outside the allowlist');
 });
@@ -191,7 +259,8 @@ test('shell installer refuses a DRIVE9_INSTALL_DIR outside the allowlist', async
 test('shell installer refuses an allowlisted path that resolves elsewhere', async t => {
   const { error, requests } = await runShellInstaller(t, { installDir: 'symlinked' });
   assert.ok(error, 'installer must reject an allowlisted path that is a symlink elsewhere');
-  assert.match(String(error.stderr), /is not an allowed install directory/);
+  assert.match(String(error.stderr), /not a safe install directory/);
+  assert.match(String(error.stderr), /Resolved: .*outside/);
   assert.equal(requests.length, 0);
 });
 

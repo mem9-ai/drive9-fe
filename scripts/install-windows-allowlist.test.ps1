@@ -12,7 +12,8 @@ $localAppData = [Environment]::GetFolderPath("LocalApplicationData")
 $DefaultInstallDir = Join-Path $localAppData "drive9"
 
 foreach ($name in @(
-        "Get-AllowedInstallDirs", "ConvertTo-NormalizedDir", "ConvertTo-NormalizedDirOrNull",
+        "Get-AllowedInstallDirs", "Get-TrustedInstallRoots", "Resolve-PhysicalDir",
+        "Resolve-PhysicalDirOnce", "ConvertTo-NormalizedDir", "ConvertTo-NormalizedDirOrNull",
         "Test-AllowedInstallDir", "Resolve-SafeInstallDir", "Add-ToUserPath")) {
     $function = $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true) |
         Where-Object { $_.Name -eq $name }
@@ -93,6 +94,84 @@ Check "accepts a home path with spaces and shell characters" {
         Assert-True "HOME with spaces" ((Join-Path $HOME "bin") -ieq $resolved)
     } finally {
         Set-Variable -Name HOME -Value $originalHome -Force
+    }
+}
+
+function New-ReparseLink($LinkPath, $TargetPath) {
+    try {
+        New-Item -ItemType SymbolicLink -Path $LinkPath -Target $TargetPath -ErrorAction Stop | Out-Null
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+function New-ProfileSandbox {
+    $sandbox = Join-Path ([System.IO.Path]::GetTempPath()) ("drive9-link-" + [guid]::NewGuid().ToString("N"))
+    $inside = Join-Path $sandbox "home"
+    $outside = Join-Path $sandbox "outside"
+    New-Item -ItemType Directory -Path $inside -Force | Out-Null
+    New-Item -ItemType Directory -Path $outside -Force | Out-Null
+    return @{ Sandbox = $sandbox; Inside = $inside; Outside = $outside }
+}
+
+function Remove-ProfileSandbox($sandbox) {
+    Remove-Item -LiteralPath $sandbox -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+Check "rejects an allowlisted directory that links outside the profile" {
+    $box = New-ProfileSandbox
+    $originalHome = $HOME
+    try {
+        Set-Variable -Name HOME -Value $box.Inside -Force
+        $bin = Join-Path $HOME "bin"
+        if (-not (New-ReparseLink $bin $box.Outside)) {
+            Write-Host "skip: directory symlinks are not permitted here"
+            return
+        }
+        Assert-False "escaping link" (Test-AllowedInstallDir $bin)
+        Assert-Rejects "escaping link" { Resolve-SafeInstallDir $bin } "not an allowed install directory"
+    } finally {
+        Set-Variable -Name HOME -Value $originalHome -Force
+        Remove-ProfileSandbox $box.Sandbox
+    }
+}
+
+Check "accepts an allowlisted directory that links inside the profile" {
+    $box = New-ProfileSandbox
+    $originalHome = $HOME
+    try {
+        Set-Variable -Name HOME -Value $box.Inside -Force
+        $bin = Join-Path $HOME "bin"
+        $dotfiles = Join-Path $HOME "dotfiles"
+        New-Item -ItemType Directory -Path $dotfiles -Force | Out-Null
+        if (-not (New-ReparseLink $bin $dotfiles)) {
+            Write-Host "skip: directory symlinks are not permitted here"
+            return
+        }
+        Assert-True "in-profile link" (Test-AllowedInstallDir $bin)
+    } finally {
+        Set-Variable -Name HOME -Value $originalHome -Force
+        Remove-ProfileSandbox $box.Sandbox
+    }
+}
+
+Check "accepts an allowlisted directory under a redirected profile" {
+    $box = New-ProfileSandbox
+    $originalHome = $HOME
+    try {
+        $link = Join-Path $box.Sandbox "home-link"
+        if (-not (New-ReparseLink $link $box.Inside)) {
+            Write-Host "skip: directory symlinks are not permitted here"
+            return
+        }
+        Set-Variable -Name HOME -Value $link -Force
+        $bin = Join-Path $HOME "bin"
+        New-Item -ItemType Directory -Path $bin -Force | Out-Null
+        Assert-True "redirected profile" (Test-AllowedInstallDir $bin)
+    } finally {
+        Set-Variable -Name HOME -Value $originalHome -Force
+        Remove-ProfileSandbox $box.Sandbox
     }
 }
 
