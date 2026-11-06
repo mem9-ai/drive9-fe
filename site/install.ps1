@@ -144,20 +144,192 @@ function Get-ActiveDrive9Command() {
     return Get-Command drive9 -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
 }
 
-function Is-UserManagedDir($Path) {
-    $normalized = [System.IO.Path]::GetFullPath($Path)
-    $defaultDir = [System.IO.Path]::GetFullPath($DefaultInstallDir)
-    $userBin = $null
-    if ($HOME) {
-        $userBin = [System.IO.Path]::GetFullPath((Join-Path $HOME "bin"))
+# The only directories drive9 may be installed into. Everything below validates
+# against this list: an inherited DRIVE9_INSTALL_DIR must not be able to choose
+# the directory that is written to or appended to the persistent user PATH.
+function Resolve-PhysicalDirOnce($Path) {
+    $full = ConvertTo-NormalizedDir $Path
+    $root = [System.IO.Path]::GetPathRoot($full)
+    if ([string]::IsNullOrEmpty($root)) {
+        return $full
     }
 
-    return $normalized -ieq $defaultDir -or ($userBin -and $normalized -ieq $userBin)
+    $parts = @(($full.Substring($root.Length)) -split '[\\/]' | Where-Object { $_ -ne '' })
+    $current = $root
+    foreach ($part in $parts) {
+        $next = Join-Path $current $part
+        if (-not (Test-Path -LiteralPath $next)) {
+            # Nothing below a missing component exists yet, so there is nothing
+            # left to resolve; keep the remainder as spelled.
+            $current = $next
+            continue
+        }
+
+        $item = Get-Item -LiteralPath $next -Force -ErrorAction SilentlyContinue
+        if ($item -and $item.LinkType) {
+            # Junction, SymbolicLink or HardLink: follow the reparse point.
+            $target = $item.Target
+            if ($target -is [array]) { $target = $target[0] }
+            if (-not [string]::IsNullOrEmpty($target)) {
+                if (-not [System.IO.Path]::IsPathRooted($target)) { $target = Join-Path $current $target }
+                $next = [System.IO.Path]::GetFullPath($target)
+            }
+        }
+        $current = $next
+    }
+    return (ConvertTo-NormalizedDir $current)
+}
+
+# GetFullPath only normalizes the string; it does not follow junctions or
+# symlinks. Resolve the reparse points of every existing component so the
+# destination policy is applied to the directory that is actually written to.
+function Resolve-PhysicalDir($Path) {
+    $current = ConvertTo-NormalizedDir $Path
+    for ($pass = 0; $pass -lt 32; $pass++) {
+        $next = Resolve-PhysicalDirOnce $current
+        if ($next -ieq $current) {
+            return $current
+        }
+        $current = $next
+    }
+    # An intermediate hop is never an acceptable answer: the caller would then
+    # approve a path whose real target may sit outside the trusted roots.
+    throw "directory link chain at $Path did not resolve after 32 passes"
+}
+
+# The only directories drive9 may be installed into, spelled both relative to the
+# configured root and relative to the directory that root physically points at.
+function Get-AllowedInstallDirs {
+    $dirs = @()
+    $pairs = @()
+    if ($localAppData) {
+        $pairs += , @('drive9', $localAppData)
+        $pairs += , @('Programs\drive9', $localAppData)
+    }
+    if ($HOME) {
+        $pairs += , @('bin', $HOME)
+    }
+
+    foreach ($pair in $pairs) {
+        $suffix = $pair[0]
+        $root = $pair[1]
+        $bases = @($root)
+        try { $bases += Resolve-PhysicalDir $root } catch { }
+        foreach ($base in $bases) {
+            if ([string]::IsNullOrWhiteSpace($base)) { continue }
+            try {
+                $dirs += ConvertTo-NormalizedDir (Join-Path $base $suffix)
+            } catch {
+            }
+        }
+    }
+    return @($dirs | Select-Object -Unique)
+}
+
+# Roots a user-managed destination must physically stay inside: the user's own
+# profile and local app data, resolved through any reparse points.
+function Get-TrustedInstallRoots {
+    $roots = @()
+    foreach ($candidate in @($localAppData, $HOME)) {
+        if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+        try { $roots += ConvertTo-NormalizedDir $candidate } catch { }
+        try { $roots += Resolve-PhysicalDir $candidate } catch { }
+    }
+    return @($roots | Select-Object -Unique)
+}
+
+function ConvertTo-NormalizedDir($Path) {
+    $full = [System.IO.Path]::GetFullPath($Path)
+    $trimmed = $full -replace '[\\/]+$', ''
+    if ([string]::IsNullOrEmpty($trimmed)) {
+        return $full
+    }
+    return $trimmed
+}
+
+# A destination is accepted only when it is spelled as an allowlisted location
+# AND resolves to a physical path inside the user's own profile tree. A junction
+# or symlink at or below the allowlisted leaf that leads elsewhere is refused;
+# a profile directory that is itself redirected (roaming profile, junctioned
+# $HOME) still works because the root is resolved too.
+function Test-AllowedInstallDir($Path) {
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return $false
+    }
+
+    try {
+        $spelled = ConvertTo-NormalizedDir $Path
+        $physical = Resolve-PhysicalDir $spelled
+    } catch {
+        return $false
+    }
+
+    $spellingAllowed = $false
+    foreach ($allowed in Get-AllowedInstallDirs) {
+        if ($spelled -ieq $allowed) {
+            $spellingAllowed = $true
+            break
+        }
+    }
+    if (-not $spellingAllowed) {
+        return $false
+    }
+
+    $separator = [System.IO.Path]::DirectorySeparatorChar
+    foreach ($root in Get-TrustedInstallRoots) {
+        if ($physical -ieq $root) { return $true }
+        if ($physical.StartsWith($root + $separator, [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
+    }
+    return $false
+}
+
+function Resolve-SafeInstallDir($Requested, $Label = 'DRIVE9_INSTALL_DIR') {
+    $value = $Requested.Trim()
+
+    # This value is written to disk and persisted into the user PATH, so refuse
+    # only the characters that break those consumers: control characters, the
+    # PATH separator ';', '"' (quoted PATH entries), and '%' (expanded by PATH
+    # consumers). Unusual but legal profile paths ("it's me", "R&D", "50% off")
+    # are accepted; traversal and origin are handled by GetFullPath and the
+    # allowlist below.
+    if ($value -match '[\x00-\x1f;"%]') {
+        Fail "DRIVE9_INSTALL_DIR contains unsupported characters: $value"
+    }
+    if ($value.StartsWith('\\')) {
+        Fail "DRIVE9_INSTALL_DIR must be a local directory, not a UNC path: $value"
+    }
+    if ($value.IndexOf(':', 2) -ge 0) {
+        Fail "DRIVE9_INSTALL_DIR must not contain ':' beyond the drive letter: $value"
+    }
+    if (-not [System.IO.Path]::IsPathRooted($value)) {
+        Fail "DRIVE9_INSTALL_DIR must be an absolute path: $value"
+    }
+
+    if (-not (Test-AllowedInstallDir $value)) {
+        $physical = $null
+        try { $physical = Resolve-PhysicalDir $value } catch { }
+        $detail = ''
+        if ($physical -and ($physical -ine (ConvertTo-NormalizedDir $value))) {
+            $detail = ' (resolves to ' + $physical + ')'
+        }
+        $subject = if ($Label -eq 'DRIVE9_INSTALL_DIR') { "DRIVE9_INSTALL_DIR='" + $value + "'" } else { $Label + " '" + $value + "'" }
+        Fail ($subject + ' is not an allowed install directory' + $detail + '. Allowed directories: ' + ((Get-AllowedInstallDirs) -join ', ') + '. Remove the link, or set DRIVE9_INSTALL_DIR to an allowlisted directory.')
+    }
+
+    return (ConvertTo-NormalizedDir $value)
+}
+
+function ConvertTo-NormalizedDirOrNull($Path) {
+    try {
+        return ConvertTo-NormalizedDir $Path
+    } catch {
+        return $null
+    }
 }
 
 function Resolve-InstallDir() {
     if ($env:DRIVE9_INSTALL_DIR) {
-        $script:InstallDir = $env:DRIVE9_INSTALL_DIR
+        $script:InstallDir = Resolve-SafeInstallDir $env:DRIVE9_INSTALL_DIR
         Write-Info "Install dir: $InstallDir (from DRIVE9_INSTALL_DIR)"
         return
     }
@@ -165,19 +337,20 @@ function Resolve-InstallDir() {
     $existing = Get-ActiveDrive9Command
     if ($existing -and $existing.Source) {
         $existingDir = Split-Path -Parent $existing.Source
-        if (Is-UserManagedDir $existingDir) {
-            $script:InstallDir = $existingDir
+        if (Test-AllowedInstallDir $existingDir) {
+            $script:InstallDir = ConvertTo-NormalizedDir $existingDir
             Write-Info "Upgrading active drive9 in $InstallDir"
             return
         }
 
-        $script:InstallDir = $DefaultInstallDir
-        Write-WarnMessage "drive9 currently resolves to $($existing.Source)"
-        Write-WarnMessage ('Installing to ' + $InstallDir + '; re-run with $env:DRIVE9_INSTALL_DIR = "' + $existingDir + '" to replace the active binary')
-        return
+        Write-WarnMessage "drive9 currently resolves to $($existing.Source), which is outside the supported install directories"
+        Write-WarnMessage "Installing to the default directory instead; remove the other copy to avoid PATH shadowing"
     }
 
-    $script:InstallDir = $DefaultInstallDir
+    # The default destination is validated like any other: an allowlisted
+    # spelling that resolves outside the profile must never be probed, written,
+    # or persisted, no matter which branch selected it.
+    $script:InstallDir = Resolve-SafeInstallDir $DefaultInstallDir 'the default install directory'
     Write-Info "Install dir: $InstallDir"
 }
 
@@ -199,21 +372,30 @@ function Get-BinaryVersion($BinaryPath) {
 }
 
 function Add-ToUserPath($PathToAdd) {
+    if (-not (Test-AllowedInstallDir $PathToAdd)) {
+        Write-WarnMessage "Refusing to add $PathToAdd to the persistent user PATH: it is not an allowed install directory"
+        return $false
+    }
+
+    $normalized = ConvertTo-NormalizedDir $PathToAdd
     $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
     $parts = @()
     if ($userPath) {
         $parts = $userPath.Split(';', [System.StringSplitOptions]::RemoveEmptyEntries)
     }
 
-    $alreadyPresent = $parts | Where-Object { $_.TrimEnd('\\') -ieq $PathToAdd.TrimEnd('\\') }
+    $alreadyPresent = $parts | Where-Object {
+        $existing = ConvertTo-NormalizedDirOrNull $_.Trim()
+        $existing -and $existing -ieq $normalized
+    }
     if ($alreadyPresent) {
         return $false
     }
 
     $newUserPath = if ([string]::IsNullOrWhiteSpace($userPath)) {
-        $PathToAdd
+        $normalized
     } else {
-        "$userPath;$PathToAdd"
+        "$userPath;$normalized"
     }
 
     [Environment]::SetEnvironmentVariable("Path", $newUserPath, "User")
@@ -242,7 +424,12 @@ function Report-PathStatus() {
     if ($activePath -ine $installedPath) {
         Write-WarnMessage "PATH shadowing detected: drive9 resolves to $activePath"
         Write-WarnMessage "Installed binary: $installedPath"
-        Write-WarnMessage ('Re-run with $env:DRIVE9_INSTALL_DIR = "' + [System.IO.Path]::GetDirectoryName($activePath) + '" to replace the active binary')
+        $activeDir = [System.IO.Path]::GetDirectoryName($activePath)
+        if (Test-AllowedInstallDir $activeDir) {
+            Write-WarnMessage ('Re-run with $env:DRIVE9_INSTALL_DIR = "' + $activeDir + '" to replace the active binary')
+        } else {
+            Write-WarnMessage "Remove the other drive9 copy ($activePath) to avoid PATH shadowing"
+        }
     }
 }
 
@@ -315,7 +502,7 @@ Assert-Checksum $tempFile $artifactName $checksums
 
 try {
     try {
-        Move-Item -Force $tempFile $targetExe
+        Move-Item -Force -LiteralPath $tempFile -Destination $targetExe
     } catch {
         Fail "Could not install drive9.exe to $targetExe. Close any running drive9 processes and try again. If the target directory needs elevation, re-run in an elevated PowerShell session."
     }
