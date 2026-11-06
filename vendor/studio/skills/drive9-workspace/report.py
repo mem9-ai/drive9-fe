@@ -19,12 +19,48 @@ from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-from filelock import FileLock
+from contextlib import contextmanager
 from keyring.errors import KeyringError
 
 PRODUCTION = "https://drive9.ai/studio"
 SAMPLE_DIGEST = "d79064c635829b0aeac2824b49e3e189a838dd52f1669567f2efa8913c8e1f06"
 LIFETIME = 48 * 3600
+
+
+@contextmanager
+def project_lock(path, timeout=40):
+    """OS-owned lock; process exit releases it, including interrupted agents."""
+    with open(path, "a+b") as lock:
+        if os.name == "nt":
+            import msvcrt
+            if not os.fstat(lock.fileno()).st_size:
+                lock.write(b"0")
+                lock.flush()
+            def acquire():
+                lock.seek(0)
+                msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+            def release():
+                lock.seek(0)
+                msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+            def acquire():
+                fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            def release():
+                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                acquire()
+                break
+            except (BlockingIOError, PermissionError):
+                if time.monotonic() >= deadline:
+                    raise TimeoutError("Another agent is using this project. Retry when it finishes.")
+                time.sleep(0.1)
+        try:
+            yield
+        finally:
+            release()
 
 
 def native_store():
@@ -188,7 +224,7 @@ def trial(base, project, home, action, store_factory=native_store, now=time.time
     ).hexdigest()
     directory = home / binding
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
-    with FileLock(str(directory / "binding.lock"), timeout=40):
+    with project_lock(str(directory / "binding.lock"), timeout=40):
         path = directory / "binding.json"
         state = json.loads(path.read_text()) if path.exists() else {}
         service = "Drive9 Agent Trial " + binding
@@ -196,7 +232,7 @@ def trial(base, project, home, action, store_factory=native_store, now=time.time
         terminal = state.get("status") in ("expired", "forgotten")
         cleanup = expired or action == "forget"
         if terminal and action not in ("new", "forget"):
-            return {"status": state["status"], "report": state.get("file")}
+            return {"status": state["status"], "report": state.get("projectFile", state.get("file"))}
         try:
             store = store_factory()
             secret = store.get_password(service, "project")
@@ -207,7 +243,7 @@ def trial(base, project, home, action, store_factory=native_store, now=time.time
                 state.update(status="forgotten" if action == "forget" else "expired")
                 save_state(path, state)
                 if action != "new":
-                    return {"status": state["status"], "report": state.get("file")}
+                    return {"status": state["status"], "report": state.get("projectFile", state.get("file"))}
             if action == "new":
                 if state and not (terminal or expired):
                     raise ValueError(
@@ -217,7 +253,7 @@ def trial(base, project, home, action, store_factory=native_store, now=time.time
                 terminal = False
                 action = "start"
             if terminal:
-                return {"status": state["status"], "report": state.get("file")}
+                return {"status": state["status"], "report": state.get("projectFile", state.get("file"))}
             if secret is None:
                 if state.get("reportId") or action != "start":
                     raise ValueError(
@@ -233,23 +269,9 @@ def trial(base, project, home, action, store_factory=native_store, now=time.time
                 base64.urlsafe_b64decode(secret + "==")
             )
         except (KeyringError, ImportError, RuntimeError, OSError) as error:
-            if cleanup:
-                raise ValueError(
-                    "Unlock the system credential store and retry key removal."
-                ) from error
-            cached = directory / "us-sales-v1.csv"
-            sample = (
-                cached.read_bytes()
-                if cached.is_file()
-                else api(base, "us-sales-v1.csv")
-            )
-            file = directory / "local-sales-report.md"
-            atomic_write(file, summary(sample, action == "products").encode())
-            return {
-                "status": "local-only",
-                "report": str(file),
-                "message": "Unlock or enable the OS credential store to save and resume the remote report.",
-            }
+            raise ValueError(
+                "The OS credential store is unavailable or locked. Existing files and identity were preserved. Enable or unlock it before continuing; no replacement credential was created."
+            ) from error
 
         sample_file = directory / "us-sales-v1.csv"
         if not sample_file.exists():
@@ -259,19 +281,16 @@ def trial(base, project, home, action, store_factory=native_store, now=time.time
         sample = sample_file.read_bytes()
         try:
             return sync_report(
-                base, action, private, path, state, directory, sample, store, service
+                base, action, private, path, state, directory, sample, store, service, project_dir(project)
             )
         except (URLError, TimeoutError, TrialError) as error:
-            file = directory / "unsynced-sales-report.md"
-            atomic_write(file, summary(sample, action == "products").encode())
-            return {
-                "status": "local-only",
-                "report": str(file),
-                "message": f"Remote save unconfirmed ({error}). Retry the same command to recover.",
-            }
+            action_name = "Sharing revocation" if action == "unshare" else "Remote save"
+            raise ValueError(
+                f"{action_name} unconfirmed ({error}). Existing files and key were retained. Retry the same command to recover."
+            ) from error
 
 
-def sync_report(base, action, private, path, state, directory, sample, store, service):
+def sync_report(base, action, private, path, state, directory, sample, store, service, project):
     enroll = action == "start" and "reportId" not in state
     challenge = api(base, "challenges", payload={})["challenge"]
     message = f"drive9/trial/v1\n{challenge}\n{'start' if enroll else 'resume'}"
@@ -288,7 +307,7 @@ def sync_report(base, action, private, path, state, directory, sample, store, se
             store.delete_password(service, "project")
             state["status"] = "expired"
             save_state(path, state)
-            return {"status": "expired", "report": state.get("file")}
+            return {"status": "expired", "report": state.get("projectFile", state.get("file"))}
         raise
     report = session["report"]
     report_id = str(uuid.UUID(report["id"]))
@@ -297,6 +316,11 @@ def sync_report(base, action, private, path, state, directory, sample, store, se
     state.update(reportId=report_id, expiresAt=report["expiresAt"], status="active")
     save_state(path, state)
     token = session["token"]
+    if action == "unshare":
+        revoked = api(base, "report-sharing", token=token, method="DELETE")
+        if not revoked.get("sharingRevoked"):
+            raise ValueError("Sharing revocation was not confirmed. Keep your key and retry.")
+        return {"status": "sharing-revoked", "report": state.get("projectFile", state.get("file")), "reportId": report_id}
     desired = 2 if action == "products" else 1
     result = api(base, "report", token=token)
     if action == "products" and result["revision"] == 0:
@@ -320,10 +344,35 @@ def sync_report(base, action, private, path, state, directory, sample, store, se
         result = api(base, "report", token=token)
     if result["id"] != report_id or result["revision"] < desired:
         raise ValueError("Remote save unconfirmed. Resume to recover.")
-    text = summary(sample, result["revision"] == 2, result)
+    summary(sample, result["revision"] == 2, result)
+    text = result.get("markdown")
+    if not isinstance(text, str) or not text:
+        raise ValueError("The server did not return the canonical report. Retry after the service update.")
     file = directory / f"{report_id}.md"
     atomic_write(file, text.encode())
     state["file"] = str(file)
+    folder = project / "reports" / "tidb-agent-workspace"
+    for parent in (project / "reports", folder):
+        if parent.is_symlink() or (parent.exists() and not parent.is_dir()):
+            raise ValueError("The report directory must be a regular project directory.")
+        parent.mkdir(exist_ok=True)
+    source = folder / "us-sales.csv"
+    if source.is_symlink() or (source.exists() and source.read_bytes() != sample):
+        raise ValueError("The project sample has local edits. Preserve them before continuing.")
+    if not source.exists():
+        atomic_write(source, sample)
+    local = Path(state.get("projectFile", folder / "report.md"))
+    if local.parent != folder or local.is_symlink():
+        raise ValueError("Unexpected project report path.")
+    if "projectFile" not in state:
+        index = 2
+        while local.exists():
+            local = folder / f"report-{index}.md"
+            index += 1
+    elif local.exists() and hashlib.sha256(local.read_bytes()).hexdigest() != state.get("projectHash") and local.read_text() != text:
+        raise ValueError("The project report has local edits. They were preserved.")
+    atomic_write(local, text.encode())
+    state.update(projectFile=str(local), projectHash=hashlib.sha256(text.encode()).hexdigest())
     save_state(path, state)
     expiry = result["expiresAt"]
     view_proof = private.sign(f"drive9/trial/report-view/v1\n{report_id}\n{expiry}".encode())
@@ -332,9 +381,10 @@ def sync_report(base, action, private, path, state, directory, sample, store, se
         "status": "synced",
         "reportId": report_id,
         "version": result["revision"],
-        "studioUrl": f"{base}/report/#{grant}",
-        "insightsUrl": f"{base}/report/?view=markets#{grant}",
-        "report": str(file),
+        **({"studioUrl": f"{base}/report/#{grant}", "insightsUrl": f"{base}/report/?view=markets#{grant}"} if not result.get("sharingRevoked") else {}),
+        "sharingRevoked": result.get("sharingRevoked", False),
+        "report": str(local),
+        "source": str(source),
         "expiresAt": datetime.fromtimestamp(
             result["expiresAt"], timezone.utc
         ).isoformat(),
@@ -344,7 +394,7 @@ def sync_report(base, action, private, path, state, directory, sample, store, se
 
 if __name__ == "__main__":
     args = argparse.ArgumentParser(description=__doc__)
-    args.add_argument("action", choices=["start", "products", "forget", "new"])
+    args.add_argument("action", choices=["start", "products", "unshare", "forget", "new"])
     args.add_argument("--project", type=Path, default=Path.cwd())
     args.add_argument(
         "--studio", default=PRODUCTION, help="Override only for loopback development"

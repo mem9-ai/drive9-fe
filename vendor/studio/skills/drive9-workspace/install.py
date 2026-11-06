@@ -2,6 +2,7 @@
 
 from contextlib import contextmanager
 import hashlib
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -31,8 +32,8 @@ def installation_lock(path):
 
 
 def install():
-    if sys.version_info < (3, 10):
-        sys.exit("The TiDB Agent Workspace report tool requires Python 3.10 or later.")
+    if sys.version_info < (3, 9, 2):
+        sys.exit("The TiDB Agent Workspace report tool requires Python 3.9.2 or later.")
     skills = Path.home() / ".agents" / "skills" / "drive9-workspace"
     runtime = Path.home() / ".drive9" / "report-runtime"
     runtime.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -59,6 +60,14 @@ def install_assets(skills, runtime):
         )
     ):
         return
+    previous_path = skills / ".drive9-assets.json"
+    previous = json.loads(previous_path.read_text()) if previous_path.is_file() else LEGACY_ASSETS
+    for name, expected in ASSETS.items():
+        installed = skills / name
+        if installed.is_symlink():
+            sys.exit("Preserve the existing symlinked skill before installing.")
+        if installed.exists() and hashlib.sha256(installed.read_bytes()).hexdigest() not in (expected, previous.get(name)):
+            sys.exit(f"Local changes in {name} were preserved. Reconcile them before updating the skill.")
     assets = {}
     for name, digest in ASSETS.items():
         with urllib.request.urlopen(base + name, timeout=15) as response:
@@ -70,21 +79,23 @@ def install_assets(skills, runtime):
                 "Studio assets changed. Read the current official skill and retry installation."
             )
         assets[name] = data
-    venv.EnvBuilder(with_pip=True).create(runtime)
-    subprocess.run(
-        [
-            str(python),
-            "-I",
-            "-m",
-            "pip",
-            "install",
-            "--only-binary=:all:",
-            "keyring==25.6.0",
-            "cryptography==46.0.5",
-            "filelock==3.25.2",
-        ],
-        check=True,
-    )
+    if not python.is_file():
+        venv.EnvBuilder(with_pip=True).create(runtime)
+    versions = subprocess.run([str(python), "-I", "-c", "import importlib.metadata as m; print(','.join(m.version(n) for n in ('keyring', 'cryptography')))"], capture_output=True, text=True)
+    if versions.returncode != 0 or versions.stdout.strip() != "25.6.0,46.0.5":
+        subprocess.run(
+            [
+                str(python),
+                "-I",
+                "-m",
+                "pip",
+                "install",
+                "--only-binary=:all:",
+                "keyring==25.6.0",
+                "cryptography==46.0.5",
+            ],
+            check=True,
+        )
     skills.mkdir(parents=True, exist_ok=True)
     marker.touch()
     for name, data in assets.items():
@@ -92,11 +103,13 @@ def install_assets(skills, runtime):
             handle.write(data)
             file = handle.name
         os.replace(file, skills / name)
+    previous_path.write_text(json.dumps(ASSETS))
     print(f"Installed. Run {python} -I {skills / 'report.py'} start in your project.")
 
 
 # fmt: off
-ASSETS = {"SKILL.md":"69989c9db22cb59664962886bc0fd2f2ade4b1c1e07b249b38ab3038d165fdce","report.py":"4124d8ce10041b0fe6ff06f5ce22d975ccd1f433338ed51071441eda43db6f06","private_csv.py":"2f964c6b234456a80e5d5ace57d3a70882375dbeddbedee87fe22d970d3cc262"}
+LEGACY_ASSETS = {"SKILL.md":"69989c9db22cb59664962886bc0fd2f2ade4b1c1e07b249b38ab3038d165fdce","report.py":"4124d8ce10041b0fe6ff06f5ce22d975ccd1f433338ed51071441eda43db6f06","private_csv.py":"2f964c6b234456a80e5d5ace57d3a70882375dbeddbedee87fe22d970d3cc262"}
+ASSETS = {"SKILL.md":"ee88d6bf0f5a97220e4d75a1b03ae058e534c745cf52dc15f38fd82b55cd90d8","private-csv.md":"d0aa435ed87d90b1e08b3066ff0ea3d8c012efc93f0eb73caa91859bdcfcb627","workspace-api.md":"93d3acc36e4f55d34bf4700a3634373cfbedd96514a12171af51f9e44cb4ed0b","report.py":"ab4eacd8a92efe48089bb6a74e7bddbcdf0db01af69baae1684b1d04abbc45e0","private_csv.py":"2041a22bec056115359f7ba6982e662f587437d6fc442895898b371814233171"}
 # fmt: on
 
 if __name__ == "__main__":
