@@ -16,7 +16,6 @@ from urllib.parse import urlsplit
 from urllib.request import Request, build_opener
 from uuid import UUID
 
-from filelock import FileLock
 from keyring.errors import KeyringError, PasswordDeleteError
 
 # Isolated Python intentionally omits the script directory from sys.path.
@@ -93,7 +92,7 @@ def private_csv(
     directory = home / binding
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
     path, cache = directory / "binding.json", directory / "source.csv"
-    with FileLock(str(directory / "binding.lock")):
+    with shared["project_lock"](str(directory / "binding.lock")):
         if action == "resume" and not path.exists():
             return {"status": "needs-file"}
         state = json.loads(path.read_text()) if path.exists() else {}
