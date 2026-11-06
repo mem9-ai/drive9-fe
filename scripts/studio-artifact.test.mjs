@@ -45,7 +45,7 @@ test('only the bounded Workspace skill and report tools are accepted, hashed and
   await mkdir(folder, { recursive: true });
   await writeFile(skill, '# Workspace skill\n');
   assert.match((await studioHashes(directory))['skills/drive9-workspace/SKILL.md'], /^[a-f0-9]{64}$/);
-  for (const name of ['install.py', 'report.py', 'private_csv.py']) {
+  for (const name of ['install.py', 'report.py', 'private_csv.py', 'private-csv.md', 'workspace-api.md']) {
     const helper = join(folder, name);
     await writeFile(helper, '# Public report client');
     assert.match((await studioHashes(directory))[`skills/drive9-workspace/${name}`], /^[a-f0-9]{64}$/);
