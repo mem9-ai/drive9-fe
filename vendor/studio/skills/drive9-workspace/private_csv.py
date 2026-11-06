@@ -1,4 +1,4 @@
-"""Open or resume the selected private CSV in this project's 24-hour TiDB Agent Workspace."""
+"""Open or resume the selected private CSV in this project's 48-hour TiDB Agent Workspace."""
 
 import argparse
 import csv
@@ -127,7 +127,7 @@ def private_csv(
             # the same key selects the same server-side Workspace.
             state = {
                 "status": "opening",
-                "expiresAt": state.get("expiresAt", int(now()) + 86400),
+                "expiresAt": state.get("expiresAt", int(now()) + 172800),
             }
             shared["save_state"](path, state)
             receipt = json.loads(request(base, key, "workspaces", "POST", b""))
