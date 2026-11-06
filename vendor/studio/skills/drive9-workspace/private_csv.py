@@ -57,7 +57,7 @@ def request(base, key, route, method="GET", body=None, headers=None):
 
 def selected_csv(file):
     if not file or file.suffix.lower() != ".csv" or not file.is_file():
-        raise ValueError("Give the agent the path of the CSV to upload.")
+        raise ValueError("Attach your CSV in the chat or tell your agent its filename.")
     with file.open("rb") as handle:
         data = handle.read(LIMIT + 1)
     if not data or len(data) > LIMIT or b"\0" in data:
@@ -94,6 +94,8 @@ def private_csv(
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
     path, cache = directory / "binding.json", directory / "source.csv"
     with FileLock(str(directory / "binding.lock")):
+        if action == "resume" and not path.exists():
+            return {"status": "needs-file"}
         state = json.loads(path.read_text()) if path.exists() else {}
         store = store_factory()
         if action == "forget" or state.get("expiresAt", now() + 1) <= now():
