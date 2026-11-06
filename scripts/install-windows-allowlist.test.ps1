@@ -72,15 +72,28 @@ Check "resolve allowlisted directory" {
 }
 Check "reject relative path" { Assert-Rejects "relative" { Resolve-SafeInstallDir "bin" } "absolute path" }
 Check "reject UNC path" { Assert-Rejects "unc" { Resolve-SafeInstallDir '\\server\share' } "UNC path" }
-Check "reject shell metacharacters" { Assert-Rejects "metachars" { Resolve-SafeInstallDir ((Join-Path $HOME "bin") + '; rm -rf /') } "unsupported characters" }
+Check "reject PATH separator injection" { Assert-Rejects "semicolon" { Resolve-SafeInstallDir ((Join-Path $HOME "bin") + ';C:\Windows\System32') } "unsupported characters" }
 Check "reject quote injection" { Assert-Rejects "quote" { Resolve-SafeInstallDir ((Join-Path $HOME "bin") + '"') } "unsupported characters" }
-Check "reject wildcard" { Assert-Rejects "wildcard" { Resolve-SafeInstallDir ((Join-Path $HOME "bin") + '*') } "unsupported characters" }
+Check "reject environment expansion" { Assert-Rejects "percent" { Resolve-SafeInstallDir ((Join-Path $HOME "bin") + '%PATH%') } "unsupported characters" }
 Check "reject alternate data stream" { Assert-Rejects "ads" { Resolve-SafeInstallDir ((Join-Path $HOME "bin") + ':evil') } "':' beyond the drive letter" }
 Check "reject non-allowlisted absolute directory" {
     Assert-Rejects "non-allowlisted" { Resolve-SafeInstallDir ([System.IO.Path]::GetTempPath()) } "not an allowed install directory"
 }
 Check "reject traversal into non-allowlisted directory" {
     Assert-Rejects "traversal" { Resolve-SafeInstallDir ((Join-Path $HOME "bin") + "$sep..$sep..$sep") } "not an allowed install directory|unsupported characters"
+}
+
+Check "accepts a home path with spaces and shell characters" {
+    $originalHome = $HOME
+    try {
+        # $HOME is read-only; -Force is required to point the allowlist at a
+        # profile directory whose name contains spaces, an ampersand and a quote.
+        Set-Variable -Name HOME -Value (Join-Path ([System.IO.Path]::GetTempPath()) "drive9 home & it's mine") -Force
+        $resolved = Resolve-SafeInstallDir (Join-Path $HOME "bin")
+        Assert-True "HOME with spaces" ((Join-Path $HOME "bin") -ieq $resolved)
+    } finally {
+        Set-Variable -Name HOME -Value $originalHome -Force
+    }
 }
 
 Check "PATH guard rejects non-allowlisted directory" {

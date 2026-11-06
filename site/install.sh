@@ -181,12 +181,13 @@ resolve_install_dir() {
       /*) ;;
       *) error "DRIVE9_INSTALL_DIR must be an absolute path (got '${_requested}')." ;;
     esac
-    # Reject anything that is not a plain path: whitespace, quotes, shell and
-    # glob metacharacters, and ".." traversal.
-    case "$_requested" in
-      *[!A-Za-z0-9._/-]*|*..*)
-        error "DRIVE9_INSTALL_DIR contains unsupported characters (got '${_requested}')." ;;
-    esac
+    # Only control characters are refused outright: they cannot appear in a real
+    # install path and would corrupt the reported lines. Everything else is safe
+    # because the value is always quoted, passed with `--`, and compared against
+    # the allowlist below after canonicalisation (which also resolves "..").
+    if [ "$(printf '%s' "$_requested" | tr -d '[:cntrl:]')" != "$_requested" ]; then
+      error "DRIVE9_INSTALL_DIR contains control characters."
+    fi
 
     _resolved=$(canonicalize_dir "$_requested")
     if ! is_allowed_install_dir "$_resolved"; then
@@ -267,7 +268,7 @@ report_path_status() {
   if [ "$ACTIVE" != "$INSTALLED" ]; then
     warn "PATH shadowing detected: drive9 resolves to ${ACTIVE}"
     warn "Installed binary: ${INSTALLED}"
-    warn "Re-run with DRIVE9_INSTALL_DIR=$(dirname "$ACTIVE") to replace the active binary"
+    warn "Re-run with DRIVE9_INSTALL_DIR='$(dirname "$ACTIVE")' to replace the active binary"
   fi
 }
 

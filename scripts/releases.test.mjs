@@ -42,19 +42,22 @@ async function runShellInstaller(t, {
   downloadFails = false,
   checksums = 'valid',
   installDir = 'allowlisted',
+  homeName = 'home',
 } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'drive9-install-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  for (const name of ['tools', 'home', 'tmp']) await mkdir(join(root, name));
+  for (const name of ['tools', 'tmp']) await mkdir(join(root, name));
+  const homeDir = join(root, homeName);
+  await mkdir(homeDir);
 
-  const homeBin = join(root, 'home', '.local', 'bin');
+  const homeBin = join(homeDir, '.local', 'bin');
   let targetDir;
   if (installDir === 'non-allowlisted') {
     targetDir = join(root, 'install');
     await mkdir(targetDir);
   } else if (installDir === 'symlinked') {
     const outside = join(root, 'outside');
-    await mkdir(join(root, 'home', '.local'), { recursive: true });
+    await mkdir(join(homeDir, '.local'), { recursive: true });
     await mkdir(outside);
     await symlink(outside, homeBin);
     targetDir = homeBin;
@@ -102,7 +105,7 @@ process.exit(22);
       env: {
         ...process.env,
         PATH: `${join(root, 'tools')}:/usr/bin:/bin`,
-        HOME: join(root, 'home'),
+        HOME: homeDir,
         TMPDIR: join(root, 'tmp'),
         DRIVE9_INSTALL_DIR: targetDir,
       },
@@ -168,6 +171,14 @@ test('shell installer fails closed when the manifest is unavailable', async t =>
   assert.equal(await readFile(target, 'utf8'), oldPayload);
   assert.ok(!requests.includes(`${releaseBase}/drive9-linux-amd64`), 'artifact must not be downloaded without a manifest');
 });
+
+for (const homeName of ['home with spaces', "home's & co"]) {
+  test(`shell installer accepts an allowlisted directory under "${homeName}"`, async t => {
+    const { error, target } = await runShellInstaller(t, { homeName });
+    assert.equal(Boolean(error), false, error?.stderr);
+    assert.equal(await readFile(target, 'utf8'), newPayload);
+  });
+}
 
 test('shell installer refuses a DRIVE9_INSTALL_DIR outside the allowlist', async t => {
   const { error, target, requests } = await runShellInstaller(t, { installDir: 'non-allowlisted' });

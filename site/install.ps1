@@ -199,10 +199,13 @@ function Test-AllowedInstallDir($Path) {
 function Resolve-SafeInstallDir($Requested) {
     $value = $Requested.Trim()
 
-    # This value is used as a filesystem target and is persisted into the user
-    # PATH, so only plain absolute local paths are accepted: no quotes, no
-    # wildcards, no shell metacharacters, no UNC paths.
-    if ($value -match '[\x00-\x1f"''`$;&|<>^*?!%]') {
+    # This value is written to disk and persisted into the user PATH, so refuse
+    # only the characters that break those consumers: control characters, the
+    # PATH separator ';', '"' (quoted PATH entries), and '%' (expanded by PATH
+    # consumers). Unusual but legal profile paths ("it's me", "R&D", "50% off")
+    # are accepted; traversal and origin are handled by GetFullPath and the
+    # allowlist below.
+    if ($value -match '[\x00-\x1f;"%]') {
         Fail "DRIVE9_INSTALL_DIR contains unsupported characters: $value"
     }
     if ($value.StartsWith('\\')) {
