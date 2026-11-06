@@ -1,6 +1,6 @@
 ---
 name: tidb-agent-workspace
-description: Start or continue a free TiDB Agent Workspace public US sales report in this project, including a report created by another local coding agent. Upload an explicitly selected private CSV into an independent 24-hour workspace without login, or resume that project’s stored CSV. Also use for authenticated file and database tasks.
+description: Start or continue a free TiDB Agent Workspace public US sales report in this project, including a report created by another local coding agent. Upload an explicitly selected private CSV into an independent 48-hour workspace without login, or resume that project’s stored CSV. Also use for authenticated file and database tasks.
 ---
 
 # TiDB Agent Workspace
@@ -45,7 +45,7 @@ Skip the picker for a selected file, a usable saved source on a continuation req
 
 If no file was selected and the private state directory (`~/.drive9/private-csv/`) does not exist, go straight to the no-file response below. This also works on a new machine before installing anything. Otherwise use the isolated Python described above. If `private_csv.py` is missing or predates the `needs-file` result, update once with the current official installer. Run the sibling `private_csv.py` with `-I` in the user's project. Authenticate only through the helper and OS credential store.
 
-- **File selected.** An attachment, a file reference or an unambiguous filename in the project is a selection. Resolve it yourself and run `upload <path>`. For a filename, look only for that name in the project; if several match, let the user choose by short folder name. Never pick a different file or scan the project for upload candidates. The first upload opens a private 24-hour Workspace.
+- **File selected.** An attachment, a file reference or an unambiguous filename in the project is a selection. Resolve it yourself and run `upload <path>`. For a filename, look only for that name in the project; if several match, let the user choose by short folder name. Never pick a different file or scan the project for upload candidates. The first upload opens a private 48-hour Workspace.
 - **No file selected.** Resume the saved CSV in this project. On `needs-file`, follow the user's request in the language of the conversation:
   - A copied Studio question about the public sample belongs to the public workflow above. It needs no private CSV. A request explicitly limited to calculation in chat can use the supplied figures directly.
   - When a private request is stuck waiting for a file, offer the in-chat choices above. If the user has already selected “Use my sales CSV” from that menu, just invite the attachment or filename.
