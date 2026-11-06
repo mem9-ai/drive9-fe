@@ -42,7 +42,7 @@ def install():
 
 
 def install_assets(skills, runtime):
-    base = "https://drive9.ai/studio/skills/drive9-workspace/"
+    base = "https://drive9.ai/studio/skills/tidb-agent-workspace/"
     # Refuse to overwrite a personal skill with the same name.
     marker = skills / ".drive9-installed"
     if skills.exists() and not marker.is_file():
@@ -109,7 +109,7 @@ def install_assets(skills, runtime):
 
 # fmt: off
 LEGACY_ASSETS = {"SKILL.md":"69989c9db22cb59664962886bc0fd2f2ade4b1c1e07b249b38ab3038d165fdce","report.py":"4124d8ce10041b0fe6ff06f5ce22d975ccd1f433338ed51071441eda43db6f06","private_csv.py":"2f964c6b234456a80e5d5ace57d3a70882375dbeddbedee87fe22d970d3cc262"}
-ASSETS = {"SKILL.md":"ee88d6bf0f5a97220e4d75a1b03ae058e534c745cf52dc15f38fd82b55cd90d8","private-csv.md":"d0aa435ed87d90b1e08b3066ff0ea3d8c012efc93f0eb73caa91859bdcfcb627","workspace-api.md":"93d3acc36e4f55d34bf4700a3634373cfbedd96514a12171af51f9e44cb4ed0b","report.py":"ab4eacd8a92efe48089bb6a74e7bddbcdf0db01af69baae1684b1d04abbc45e0","private_csv.py":"2041a22bec056115359f7ba6982e662f587437d6fc442895898b371814233171"}
+ASSETS = {"SKILL.md":"3341515ed808cc790778ef35868c5e239ed7542c765dfcf82a5a5bc6eb3b86a0","private-csv.md":"a76976a84ac8d5f77ce3b68d326bb75e73e3ec8be711daa138464a54a6c01b5c","workspace-api.md":"93d3acc36e4f55d34bf4700a3634373cfbedd96514a12171af51f9e44cb4ed0b","report.py":"ab4eacd8a92efe48089bb6a74e7bddbcdf0db01af69baae1684b1d04abbc45e0","private_csv.py":"2041a22bec056115359f7ba6982e662f587437d6fc442895898b371814233171"}
 # fmt: on
 
 if __name__ == "__main__":
