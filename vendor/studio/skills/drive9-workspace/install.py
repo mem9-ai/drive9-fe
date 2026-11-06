@@ -1,4 +1,4 @@
-"""Install only the Drive9 workspace skill and its private Python environment."""
+"""Install only the TiDB Agent Workspace skill and its private Python environment."""
 
 from contextlib import contextmanager
 import hashlib
@@ -32,7 +32,7 @@ def installation_lock(path):
 
 def install():
     if sys.version_info < (3, 10):
-        sys.exit("The Drive9 report tool requires Python 3.10 or later.")
+        sys.exit("The TiDB Agent Workspace report tool requires Python 3.10 or later.")
     skills = Path.home() / ".agents" / "skills" / "drive9-workspace"
     runtime = Path.home() / ".drive9" / "report-runtime"
     runtime.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -46,7 +46,7 @@ def install_assets(skills, runtime):
     marker = skills / ".drive9-installed"
     if skills.exists() and not marker.is_file():
         sys.exit(
-            "An unmanaged drive9-workspace skill already exists. Preserve it before installing."
+            "A custom skill already occupies the install directory. Preserve it before installing."
         )
     python = runtime / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     if (
@@ -96,7 +96,7 @@ def install_assets(skills, runtime):
 
 
 # fmt: off
-ASSETS = {"SKILL.md":"f196ea8ff6784e7a87d3a95b21b242791e7c15c532cd514dd498b4c93de19618","report.py":"bd2171049e246037074b1f6e9ed8f6af9b6bd863890552be707c0ad4005497e4","private_csv.py":"f5ed7761fa17b56962740fe00ddb71e235955597b58211896a76149e8678f6a4"}
+ASSETS = {"SKILL.md":"e9eb548f0cba6a5c667a72637f40af237d75e56e0c6b90e14b53f97ca7380308","report.py":"3f3dfe6fe48a57b83a6d27a17089e7c5c713e9d9e156dd123ed269a56984f85d","private_csv.py":"5244a6a5c68f2942c4505d286bd83e20d804b6f93a46159c1bc8252935c832de"}
 # fmt: on
 
 if __name__ == "__main__":

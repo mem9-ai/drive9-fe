@@ -1,4 +1,4 @@
-"""Open or resume the selected private CSV in this project's 24-hour Drive9 workspace."""
+"""Open or resume the selected private CSV in this project's 24-hour TiDB Agent Workspace."""
 
 import argparse
 import csv
@@ -28,7 +28,7 @@ LIMIT = 1024 * 1024
 class Rejected(Exception):
     def __init__(self, status, code):
         self.status = status
-        super().__init__(f"Drive9 returned {status} ({code}).")
+        super().__init__(f"TiDB Agent Workspace returned {status} ({code}).")
 
 
 def request(base, key, route, method="GET", body=None, headers=None):
