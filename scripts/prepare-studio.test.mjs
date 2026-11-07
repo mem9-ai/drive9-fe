@@ -10,6 +10,7 @@ test('API and schema proxy rules precede the scoped SPA fallback', () => {
   assert.deepEqual(rules, [
     '/studio/api/* https://api.example.invalid/api/:splat 200!',
     '/studio/openapi.json https://api.example.invalid/openapi.json 200!',
+    '/studio/owner-openapi.json https://api.example.invalid/owner-openapi.json 200!',
     '/studio/discover/* /404.html 404',
     '/studio/* /studio/index.html 200',
   ]);
