@@ -19,6 +19,7 @@ export function studioRedirects(apiOrigin) {
   return [
     `/studio/api/* ${url.origin}/api/:splat 200!`,
     `/studio/openapi.json ${url.origin}/openapi.json 200!`,
+    `/studio/owner-openapi.json ${url.origin}/owner-openapi.json 200!`,
     // Netlify matches paths with or without a trailing slash. A slash-only
     // redirect would therefore also redirect /studio/ back to itself.
     '/studio/discover/* /404.html 404',
