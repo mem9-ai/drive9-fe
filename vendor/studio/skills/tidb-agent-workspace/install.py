@@ -90,6 +90,8 @@ def install_assets(skills, runtime):
                 "-m",
                 "pip",
                 "install",
+                "--quiet",
+                "--disable-pip-version-check",
                 "--only-binary=:all:",
                 "keyring==25.6.0",
                 "cryptography==46.0.5",
@@ -109,7 +111,7 @@ def install_assets(skills, runtime):
 
 # fmt: off
 LEGACY_ASSETS = {"SKILL.md":"69989c9db22cb59664962886bc0fd2f2ade4b1c1e07b249b38ab3038d165fdce","report.py":"4124d8ce10041b0fe6ff06f5ce22d975ccd1f433338ed51071441eda43db6f06","private_csv.py":"2f964c6b234456a80e5d5ace57d3a70882375dbeddbedee87fe22d970d3cc262"}
-ASSETS = {"SKILL.md":"3341515ed808cc790778ef35868c5e239ed7542c765dfcf82a5a5bc6eb3b86a0","private-csv.md":"a76976a84ac8d5f77ce3b68d326bb75e73e3ec8be711daa138464a54a6c01b5c","workspace-api.md":"93d3acc36e4f55d34bf4700a3634373cfbedd96514a12171af51f9e44cb4ed0b","report.py":"ab4eacd8a92efe48089bb6a74e7bddbcdf0db01af69baae1684b1d04abbc45e0","private_csv.py":"2041a22bec056115359f7ba6982e662f587437d6fc442895898b371814233171"}
+ASSETS = {"SKILL.md":"6f9939ce55b1cbb817dee3f743c25fa3874904c7975a1cd0929246fb0caddef5","private-csv.md":"8d3acadc2f43ee81e3235bc66aed345a2064ed7046cecdbaec2391957fcffcc4","workspace-api.md":"93d3acc36e4f55d34bf4700a3634373cfbedd96514a12171af51f9e44cb4ed0b","report.py":"b217ce1e608b3b48258cf373bddba3cf80ddf6b2237d4d1fe584af027c397be7","private_csv.py":"2a6a8addf903ee353c2d4a8c087d02ff3fe5203255fd16f6480f874f66c4a207"}
 # fmt: on
 
 if __name__ == "__main__":
