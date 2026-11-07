@@ -78,7 +78,7 @@ def digest(data):
 
 
 def private_csv(
-    base, project, home, action, file=None, store_factory=shared["native_store"], now=time.time
+    base, project, home, action, file=None, store_factory=shared["native_store"], now=time.time, project_exact=False
 ):
     url = urlsplit(base)
     if base != PRODUCTION and not (
@@ -87,7 +87,10 @@ def private_csv(
         and not (url.username or url.password or url.query or url.fragment)
     ):
         raise ValueError("Use the official Studio or a loopback test server.")
-    binding = digest((base + "\n" + str(shared["project_dir"](project))).encode())
+    def binding_for(root):
+        return digest((base + "\n" + str(root)).encode())
+    project = shared["resolve_project"](project, home, binding_for, action, project_exact)
+    binding = binding_for(project)
     service = "drive9.private-csv." + binding
     directory = home / binding
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -106,7 +109,7 @@ def private_csv(
             state["status"] = "forgotten" if action == "forget" else "expired"
             shared["save_state"](path, state)
         if action == "new":
-            if state.get("status") not in ("expired", "forgotten"):
+            if state and state.get("status") not in ("expired", "forgotten"):
                 raise ValueError("Use upload or resume with the current project.")
             state = {}
             action = "upload"
@@ -206,13 +209,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["upload", "resume", "replace", "forget", "new"])
     parser.add_argument("file", nargs="?", type=Path)
-    parser.add_argument("--project", type=Path, default=Path.cwd())
+    parser.add_argument("--project", type=Path, help="Use this exact project folder")
     args = parser.parse_args()
     if (args.action in ("upload", "replace", "new")) != bool(args.file):
         parser.error("Select a file for upload, replace or new. Resume uses the saved remote file.")
     try:
         state_root = Path.home() / ".drive9" / "private-csv"
-        result = private_csv(PRODUCTION, args.project, state_root, args.action, args.file)
+        result = private_csv(PRODUCTION, args.project or Path.cwd(), state_root, args.action, args.file, project_exact=args.project is not None)
         print(json.dumps(result))
     except (Rejected, ValueError, OSError, URLError, KeyringError, RuntimeError, ImportError) as error:
         sys.exit(str(error))

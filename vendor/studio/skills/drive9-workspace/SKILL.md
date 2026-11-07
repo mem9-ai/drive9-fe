@@ -7,11 +7,15 @@ description: Continue a TiDB Agent Workspace report across local coding agents, 
 
 Use the current project and the user's requested data. The public sample is a bounded demonstration, not access to their account or a general database. Private data belongs in [the private CSV workflow](private-csv.md); existing customer resources use [the authenticated API](workspace-api.md). Ask which source only when ambiguous.
 
+The product and public skill are **TiDB Agent Workspace**. `drive9.ai` is the service domain. Older public URLs are compatibility aliases. Existing local `~/.drive9/` and `~/.agents/skills/drive9-workspace/` locations are retained deliberately so updates and other agents reuse the same credentials and reports; do not rename them.
+
 ## Public sample: reuse the installed Python helper
 
 Requires Python 3.9.2+ and a usable native credential store: macOS Keychain, Linux Secret Service, or Windows Credential Manager. Check the actual environment; do not assume every Mac ships Python. Before invoking macOS `/usr/bin/python3`, confirm `xcode-select -p` succeeds so a system shim cannot prompt installation of developer tools. Do not install developer tools to continue. Reuse `~/.drive9/report-runtime/bin/python` (`Scripts/python.exe` on Windows) and `~/.agents/skills/drive9-workspace/report.py` if installed. If a compatible interpreter or native credential store is unavailable, explain what is missing and stop. Do not install/upgrade Python, switch runtimes, create another identity or use plaintext key storage to continue.
 
-On first use, after confirming a compatible interpreter is already available, inspect and run [the official installer](https://drive9.ai/studio/skills/tidb-agent-workspace/install.py) with an existing compatible Python in isolated mode. It installs the helper and its private dependencies once, reuses a healthy environment on updates and preserves customized skill files. It never installs or upgrades Python itself. If dependency setup fails, report the failure and stop; do not change runtimes or retry installations repeatedly.
+On first use, after confirming a compatible interpreter is already available (prefer an existing newer version), inspect and run [the official installer](https://drive9.ai/studio/skills/tidb-agent-workspace/install.py) with an existing compatible Python in isolated mode. It installs the helper and its private dependencies once, reuses a healthy environment on updates and preserves customized skill files. Its scope is the managed skill, one private Python environment and their dependencies; report commands use the selected project and native credential store. It never installs or upgrades Python itself. Reuse a verified installed helper without downloading and reviewing it again on each report. If dependency setup fails, report the failure and stop; do not change runtimes or retry installations repeatedly.
+
+If the installed helper does not list `--json` in `--help`, update it once with the official installer to get the project-boundary fix. Preserve its existing environment and bindings. Otherwise reuse it.
 
 Run the installed helper by absolute path from the current project:
 
@@ -19,7 +23,7 @@ Run the installed helper by absolute path from the current project:
 /absolute/path/to/python -I /absolute/path/to/report.py start
 ```
 
-The helper verifies the public sample, saves `reports/tidb-agent-workspace/report.md` and `us-sales.csv` in the project, and returns the confirmed result and read-only Studio link. The service provides canonical Markdown; don't replace it with another summary or add SQL during import. Do not upload other project files.
+Before running, tell the user in one short sentence where the report will be saved. The helper also prints the selected report folder before writing. It verifies the public sample, saves `reports/tidb-agent-workspace/report.md` and `us-sales.csv` in the project, and returns the confirmed result and read-only Studio link. The service provides canonical Markdown; don't replace it with another summary or add SQL during import. Do not upload other project files.
 
 | User intent                                    | Helper action |
 | ---------------------------------------------- | ------------- |
@@ -29,11 +33,15 @@ The helper verifies the public sample, saves `reports/tidb-agent-workspace/repor
 | Remove this project's local credential         | `forget`      |
 | Explicitly start again after expiry or removal | `new`         |
 
-Use `--project /absolute/project/path` only if necessary. The project root, service and OS user identify the binding; switching coding agents in that project reuses it. Never create another trial to work around a missing credential. Preserve existing identity and files.
+Reuse an existing binding in this folder or its project parents first. Otherwise, the nearest Git project below the user's home is selected; without one, use the current folder. Never climb into `~/.git` or the filesystem root. `--project /absolute/project/path` selects that exact folder, without walking upward. When starting in the home/root folder, use a specific project folder; offer to create one if none was selected.
+
+If the helper finds an older binding above the selected folder, present **Continue the existing report** or **Start a separate report here** using the host's native options (or two short choices in chat). Do not ask the user to type a path. For continuation, pass the returned previous folder as `--project` with the same action. Only an explicit choice to start separately permits `new --project <current folder>`; the old report and credential stay untouched. Do not move bindings or generate a key to fix a missing credential. Existing home-bound reports can still be reopened or forgotten explicitly.
+
+The project root, service and OS user identify the binding; switching coding agents in that project reuses it. The default output is a brief result; add `--json` when structured fields or `insightsUrl` are needed. A `needs-project-choice` result exits with code 2 and supplies the two options. Preserve existing identity and files.
 
 ## Deliver the result and the next step
 
-Answer the user's question in their language, using the confirmed output. Give the Studio link and one clickable local report link. If sharing was revoked, give only the retained local report. Never invent a link or claim an unconfirmed save.
+Answer the user's question in their language, using the confirmed output. Give the Studio link and one clickable local report link. Briefly state that anyone with the link can view until its displayed expiry and that the user can ask to close sharing. Keep installation logs, internal cache paths and raw JSON out of the final answer. If sharing was revoked, give only the retained local report. Never invent a link or claim an unconfirmed save.
 
 Offer one relevant next action, without a fixed sales script: add the product breakdown if it is missing, compare the top two states if requested, or open the report in Workspace to explore the saved data. The returned `insightsUrl` is another view of the same report. The Studio page refreshes automatically; Workspace opens a copy of the canonical report and sample. Inside a temporary Workspace, **Save to TiDB Cloud** lets the user keep the files through sign-in or signup. Do not imply that this read-only link proves account ownership.
 

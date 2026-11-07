@@ -142,7 +142,7 @@ def api(base, route, *, token=None, payload=None, version=None, method=None):
     return raw if route.endswith(".csv") else json.loads(raw)
 
 
-def summary(sample, products, saved=None):
+def verify_sample(sample, products, saved=None):
     if hashlib.sha256(sample).hexdigest() != SAMPLE_DIGEST:
         raise ValueError("The public sales sample failed integrity verification.")
     rows = list(csv.DictReader(io.StringIO(sample.decode("utf-8"))))
@@ -155,28 +155,7 @@ def summary(sample, products, saved=None):
     ):
         raise ValueError("Saved state totals differ from the verified public sample.")
     total = sum(states.values())
-    result = [
-        "# US sales report",
-        "",
-        "Sample: us-sales-v1",
-        "",
-        f"{state} leads with ${leading_sales:,.2f} ({leading_sales / total:.1%} of sales).",
-        f"Total: ${total:,.2f} across {len(rows)} orders.",
-        "",
-        "Summed sales_usd by state and sorted the totals in descending order.",
-        "",
-        "| State | Sales (USD) |",
-        "| --- | ---: |",
-    ]
-    result += [f"| {name} | {amount:,.2f} |" for name, amount in states.most_common()]
-    top_states = states.most_common(2)
-    combined = sum(amount for _, amount in top_states)
-    calculation = " + ".join(f"{name} (${amount:,.2f})" for name, amount in top_states)
-    result.extend([
-        "", "## Top two states", "",
-        f"{calculation} = ${combined:,.2f}.",
-        f"${combined:,.2f} / ${total:,.2f} = {combined / total:.1%} of total sales.",
-    ])
+    finding = f"{state} leads with ${leading_sales:,.0f}, {leading_sales / total:.1%} of total sales."
     if products:
         breakdown = Counter()
         for row in rows:
@@ -187,26 +166,62 @@ def summary(sample, products, saved=None):
                 "Saved product totals differ from the verified public sample."
             )
         product, sales = breakdown.most_common(1)[0]
-        result.extend(
-            [
-                "",
-                f"## Top product in {state}",
-                "",
-                f"{product} leads with ${sales:,.2f} ({sales / leading_sales:.1%} of state sales).",
-                f"Filtered orders to {state} and summed sales_usd by product.",
-            ]
-        )
-    return "\n".join(result) + "\n"
+        finding = f"{state}'s top product is {product}: ${sales:,.0f}, {sales / leading_sales:.1%} of the state's sales."
+    return finding
 
 
-def project_dir(path):
+def project_dir(path, exact=False):
     root = path.resolve(strict=True)
     if not root.is_dir():
-        raise ValueError("Choose a project directory.")
-    return next((p for p in (root, *root.parents) if (p / ".git").exists()), root)
+        raise ValueError("Open the folder where you want to keep this report.")
+    if exact:
+        return root
+    for candidate in (root, *root.parents):
+        if candidate == Path.home().resolve() or candidate == candidate.parent:
+            break
+        if (candidate / ".git").exists():
+            return candidate
+    return root
 
 
-def trial(base, project, home, action, store_factory=native_store, now=time.time):
+class ProjectChoice(ValueError):
+    def __init__(self, previous, current):
+        self.previous, self.current = previous, current
+        super().__init__(
+            f"An earlier report or CSV workspace is saved under {previous}. "
+            f"Choose: continue there, or start a separate report in {current}. "
+            "Your existing files and key have not been changed."
+        )
+
+
+def resolve_project(path, home, binding_for, action, exact=False):
+    project = project_dir(path, exact)
+    def bound(root):
+        return (home / binding_for(root) / "binding.json").is_file()
+    if not exact:
+        # An explicitly selected subfolder stays the project on later agent handoffs.
+        for candidate in (path.resolve(strict=True), *path.resolve(strict=True).parents):
+            if candidate == Path.home().resolve() or candidate == candidate.parent:
+                break
+            if bound(candidate):
+                project = candidate
+                break
+            if (candidate / ".git").exists():
+                break
+    # Older helpers climbed past the home boundary. Never silently replace that identity.
+    if not bound(project) and action != "new":
+        root = path.resolve(strict=True)
+        previous = next((p for p in (root, *root.parents) if (p / ".git").exists()), root)
+        if previous != project and bound(previous):
+            raise ProjectChoice(previous, project)
+    if (project == Path.home().resolve() or project == project.parent) and (
+        not bound(project) or action == "new"
+    ):
+        raise ValueError("Open or create a project folder first. A new report cannot use your entire home or filesystem root.")
+    return project
+
+
+def trial(base, project, home, action, store_factory=native_store, now=time.time, project_exact=False, announce=None):
     address = urlsplit(base)
     if base != PRODUCTION and not (
         address.scheme == "http"
@@ -219,9 +234,12 @@ def trial(base, project, home, action, store_factory=native_store, now=time.time
         raise ValueError(
             "Use the official Studio address or a local loopback test server."
         )
-    binding = hashlib.sha256(
-        f"{base}\0{os.path.normcase(str(project_dir(project)))}".encode()
-    ).hexdigest()
+    def binding_for(root):
+        return hashlib.sha256(f"{base}\0{os.path.normcase(str(root))}".encode()).hexdigest()
+    project = resolve_project(project, home, binding_for, action, project_exact)
+    if announce:
+        announce(project)
+    binding = binding_for(project)
     directory = home / binding
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
     with project_lock(str(directory / "binding.lock"), timeout=40):
@@ -276,12 +294,12 @@ def trial(base, project, home, action, store_factory=native_store, now=time.time
         sample_file = directory / "us-sales-v1.csv"
         if not sample_file.exists():
             downloaded = api(base, "us-sales-v1.csv")
-            summary(downloaded, False)
+            verify_sample(downloaded, False)
             atomic_write(sample_file, downloaded)
         sample = sample_file.read_bytes()
         try:
             return sync_report(
-                base, action, private, path, state, directory, sample, store, service, project_dir(project)
+                base, action, private, path, state, directory, sample, store, service, project
             )
         except (URLError, TimeoutError, TrialError) as error:
             action_name = "Sharing revocation" if action == "unshare" else "Remote save"
@@ -344,7 +362,7 @@ def sync_report(base, action, private, path, state, directory, sample, store, se
         result = api(base, "report", token=token)
     if result["id"] != report_id or result["revision"] < desired:
         raise ValueError("Remote save unconfirmed. Resume to recover.")
-    summary(sample, result["revision"] == 2, result)
+    finding = verify_sample(sample, result["revision"] == 2, result)
     text = result.get("markdown")
     if not isinstance(text, str) or not text:
         raise ValueError("The server did not return the canonical report. Retry after the service update.")
@@ -379,6 +397,7 @@ def sync_report(base, action, private, path, state, directory, sample, store, se
     grant = f"v1.{proof['publicKey']}.{report_id}.{expiry}.{encode(view_proof)}"
     return {
         "status": "synced",
+        "finding": finding,
         "reportId": report_id,
         "version": result["revision"],
         **({"studioUrl": f"{base}/report/#{grant}", "insightsUrl": f"{base}/report/?view=markets#{grant}"} if not result.get("sharingRevoked") else {}),
@@ -392,31 +411,52 @@ def sync_report(base, action, private, path, state, directory, sample, store, se
     }
 
 
-if __name__ == "__main__":
-    args = argparse.ArgumentParser(description=__doc__)
-    args.add_argument("action", choices=["start", "products", "unshare", "forget", "new"])
-    args.add_argument("--project", type=Path, default=Path.cwd())
-    args.add_argument(
-        "--studio", default=PRODUCTION, help="Override only for loopback development"
-    )
-    args = args.parse_args()
+def human_result(result):
+    status = result["status"]
+    if status == "synced":
+        lines = [result["finding"]]
+        if result.get("studioUrl"):
+            lines += [f"View report in Studio: {result['studioUrl']}",
+                      f"Anyone with this link can view until {result['expiresAt']}. Ask your agent to close sharing (unshare) to revoke it."]
+        else:
+            lines += ["Sharing is closed. Your report remains available locally."]
+        lines += [f"Local report: {result['report']}"]
+        lines += ["Next: open the Studio report to explore its saved files in Workspace."] if result.get("studioUrl") else ["Next: continue with this project open in your agent."]
+        return "\n".join(lines)
+    lines = [{"expired": "This trial has expired. Local files are retained.",
+              "forgotten": "The local credential was removed. Local files are retained; shared links were not revoked.",
+              "sharing-revoked": "Shared links are closed. Your local report and editing access are retained."}.get(status, status)]
+    if result.get("report"):
+        lines.append(f"Local report: {result['report']}")
+    return "\n".join(lines)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("action", choices=["start", "products", "unshare", "forget", "new"])
+    parser.add_argument("--project", type=Path, help="Use this exact project folder")
+    parser.add_argument("--json", action="store_true", help="Return the complete machine-readable result")
+    parser.add_argument("--studio", default=PRODUCTION, help="Override only for loopback development")
+    args = parser.parse_args()
     try:
-        print(
-            json.dumps(
-                trial(
-                    args.studio,
-                    args.project,
-                    Path.home() / ".drive9" / "agent-trials",
-                    args.action,
-                )
-            )
-        )
-    except (
-        ValueError,
-        TrialError,
-        URLError,
-        OSError,
-        KeyringError,
-        TimeoutError,
-    ) as error:
-        sys.exit(f"TiDB Agent Workspace: {error}")
+        project = args.project if args.project is not None else Path.cwd()
+        exact = args.project is not None
+        def announce(resolved):
+            print(f"Report folder: {resolved / 'reports' / 'tidb-agent-workspace'}", file=sys.stderr)
+        result = trial(args.studio, project, Path.home() / ".drive9" / "agent-trials", args.action, project_exact=exact, announce=announce)
+        print(json.dumps(result) if args.json else human_result(result))
+        return 0
+    except ProjectChoice as error:
+        choices = {"status": "needs-project-choice", "message": str(error), "options": [
+            {"label": "Continue the existing report", "action": args.action, "project": str(error.previous)},
+            {"label": "Start a separate report here", "action": "new", "project": str(error.current)},
+        ]}
+        print(json.dumps(choices) if args.json else str(error))
+        return 2
+    except (ValueError, TrialError, URLError, OSError, KeyringError, TimeoutError) as error:
+        print(f"TiDB Agent Workspace: {error}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
