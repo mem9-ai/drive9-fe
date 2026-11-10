@@ -58,51 +58,42 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           # Netlify executes this surface from the merged revision, so a change
-          # to it changes code execution in the deploy environment. The list
-          # lives in scripts/build-surface.mjs (single source). GitHub's pull
-          # request file list is computed against the merge base, so an
-          # advancing main cannot make an unrelated PR look like a change.
-          # The endpoint is documented to cap at 3000 files without an error, so
-          # compare the listing with the PR's own count and fail closed if the
-          # list may be incomplete.
-          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" > "$RUNNER_TEMP/files.json"
-          listed=$(jq 'flatten | length' "$RUNNER_TEMP/files.json")
-          reported=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.changed_files')
-          if [ "$listed" != "$reported" ]; then
-            echo "Cannot verify every changed file ($listed listed, $reported reported); refusing to evaluate the build surface." >&2
+          # to it changes code execution in the deploy environment. The decision
+          # logic lives in scripts/publication-approval.mjs and
+          # scripts/build-surface.mjs so it is covered by tests.
+          verified=0
+          for attempt in 1 2; do
+            gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" > "$RUNNER_TEMP/files.json"
+            gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > "$RUNNER_TEMP/pull.json"
+            if node scripts/publication-approval.mjs changed-paths \
+              --files "$RUNNER_TEMP/files.json" --pull "$RUNNER_TEMP/pull.json" --head "$HEAD_SHA" \
+              > "$RUNNER_TEMP/changed-paths.txt"; then
+              verified=1
+              break
+            fi
+            echo "Changed-file listing not verifiable yet (attempt $attempt); retrying." >&2
+            sleep 3
+          done
+          if [ "$verified" != 1 ]; then
+            echo "Refusing to evaluate the build surface: the changed-file list is incomplete or stale." >&2
             exit 1
           fi
-          # A rename reports the new name only, so include the previous name too.
-          jq -r 'flatten | .[] | .filename, (.previous_filename // empty)' "$RUNNER_TEMP/files.json" > "$RUNNER_TEMP/changed-paths.txt"
           changed=$(node scripts/build-surface.mjs --stdin < "$RUNNER_TEMP/changed-paths.txt")
-          if [ "$changed" = "Build surface unchanged." ]; then
-            echo "$changed"
-            exit 0
-          fi
+          case "$changed" in
+            "Build surface unchanged.")
+              echo "$changed"
+              exit 0
+              ;;
+            "")
+              echo "Build-surface evaluation produced no output; failing closed." >&2
+              exit 1
+              ;;
+          esac
           echo "Build surface changed:"
           echo "$changed"
-          # Only an approval of this exact head counts, and only the reviewer's
-          # latest state-carrying review: a stale approval cannot be reused after
-          # a follow-up push, and an ordinary comment after an approval does not
-          # revoke it (GitHub keeps the approval in that case too).
           gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews?per_page=100" > "$RUNNER_TEMP/reviews.json"
-          approved=$(jq -r --arg head "$HEAD_SHA" '
-            flatten
-            | map(select(.user != null))
-            | group_by(.user.login)
-            | map(map(select(.state != "COMMENTED")) | sort_by(.submitted_at) | last)
-            | map(select(. != null
-                         and .state == "APPROVED"
-                         and .commit_id == $head
-                         and (.author_association == "OWNER"
-                              or .author_association == "MEMBER"
-                              or .author_association == "COLLABORATOR")))
-            | .[].user.login' "$RUNNER_TEMP/reviews.json")
-          if [ -z "$approved" ]; then
-            echo 'Build-surface change needs an approving review from a maintainer on this exact head.' >&2
-            exit 1
-          fi
-          echo "Build-surface change approved by: $(echo "$approved" | tr '\n' ' ')"
+          node scripts/publication-approval.mjs approvals \
+            --reviews "$RUNNER_TEMP/reviews.json" --head "$HEAD_SHA"
       - name: Validate candidate data with trusted code
         id: validate
         env:
@@ -111,7 +102,7 @@ jobs:
           # `sender` is the review submitter under pull_request_review, so a bot
           # review would otherwise force artifact-only validation on human PRs.
           ARTIFACT_ONLY: ${{ github.event.pull_request.user.type == 'Bot' || github.head_ref == 'automation/studio-console' }}
-        run: node scripts/validate-studio-publication.mjs "$PR_BASE" "$HEAD_SHA" "$ARTIFACT_ONLY" "$RUNNER_TEMP/changed-paths.txt"
+        run: node scripts/validate-studio-publication.mjs "$HEAD_SHA" "$ARTIFACT_ONLY" "$RUNNER_TEMP/changed-paths.txt"
       - name: Report the required result on that same head
         if: always() && steps.check.outputs.id != ''
         env:

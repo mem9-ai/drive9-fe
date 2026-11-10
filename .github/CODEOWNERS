@@ -11,5 +11,11 @@
 /site/package-lock.json     @qiffang @srstack
 /package.json               @qiffang @srstack
 /package-lock.json          @qiffang @srstack
+/yarn.lock                 @qiffang @srstack
+/pnpm-lock.yaml             @qiffang @srstack
+/.npmrc                     @qiffang @srstack
+/site/yarn.lock             @qiffang @srstack
+/site/pnpm-lock.yaml        @qiffang @srstack
+/site/.npmrc                @qiffang @srstack
 /scripts/                   @qiffang @srstack
 /vendor/studio-build.json   @qiffang @srstack

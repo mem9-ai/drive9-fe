@@ -10,15 +10,23 @@ import { readFileSync, realpathSync } from 'node:fs';
 // `.github/CODEOWNERS` keeps a deliberately broader review set. The examples
 // below are the canonical list the tests and the CODEOWNERS coverage check use,
 // so widening the surface cannot silently drift from either.
-const DEPENDENCY_MANIFESTS = ['package.json', 'package-lock.json'];
+// Netlify installs from whichever of these it finds (root or base directory), and
+// a lockfile or registry config decides what the installer downloads.
+const DEPENDENCY_FILES = [
+  'package.json',
+  'package-lock.json',
+  'yarn.lock',
+  'pnpm-lock.yaml',
+  '.npmrc',
+];
 
 export const privilegedBuildSurface = path =>
   path === 'netlify.toml' ||
   path === 'site/netlify.toml' ||
   path.startsWith('scripts/') ||
   path.startsWith('.github/workflows/') ||
-  DEPENDENCY_MANIFESTS.includes(path) ||
-  DEPENDENCY_MANIFESTS.map(name => `site/${name}`).includes(path);
+  DEPENDENCY_FILES.includes(path) ||
+  DEPENDENCY_FILES.map(name => `site/${name}`).includes(path);
 
 export const PRIVILEGED_EXAMPLES = [
   'netlify.toml',
@@ -28,8 +36,14 @@ export const PRIVILEGED_EXAMPLES = [
   '.github/workflows/studio-publication.yml',
   'package.json',
   'package-lock.json',
+  'yarn.lock',
+  'pnpm-lock.yaml',
+  '.npmrc',
   'site/package.json',
   'site/package-lock.json',
+  'site/yarn.lock',
+  'site/pnpm-lock.yaml',
+  'site/.npmrc',
 ];
 
 export const UNCHANGED = 'Build surface unchanged.';

@@ -12,8 +12,8 @@ const artifactPath = path => path.startsWith('vendor/studio/') || path === 'vend
 
 // Candidate Git objects are data only. All imports and the site template above/below
 // come from the trusted default-branch checkout, never from the PR tree.
-export async function validateStudioPublication(repository, base, head, artifactOnly, changedFilesPath) {
-  for (const sha of [base, head]) assert.match(sha, /^[a-f0-9]{40}$/);
+export async function validateStudioPublication(repository, head, artifactOnly, changedFilesPath) {
+  assert.match(head, /^[a-f0-9]{40}$/);
   assert.equal(typeof artifactOnly, 'boolean');
   const git = (...args) => execFileSync('git', args, { cwd: repository, maxBuffer: 32 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
   // The workflow supplies GitHub's pull request file list, computed against the
@@ -61,9 +61,9 @@ const invokedDirectly = () => {
 
 if (invokedDirectly()) {
   try {
-    const [base, head, artifactOnly, changedFilesPath] = process.argv.slice(2);
+    const [head, artifactOnly, changedFilesPath] = process.argv.slice(2);
     assert.ok(['true', 'false'].includes(artifactOnly));
-    await validateStudioPublication(process.cwd(), base, head, artifactOnly === 'true', changedFilesPath);
+    await validateStudioPublication(process.cwd(), head, artifactOnly === 'true', changedFilesPath);
     console.log('Candidate artifacts validated by trusted main code.');
   } catch {
     console.error('Studio publication validation failed. Candidate was not executed.');

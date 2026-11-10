@@ -35,7 +35,7 @@ async function fixture(t) {
     return file;
   };
   const gate = async (only = true) =>
-    validateStudioPublication(directory, baseline, git('rev-parse', 'HEAD'), only, await changedList());
+    validateStudioPublication(directory, git('rev-parse', 'HEAD'), only, await changedList());
   return { directory, git, commit, baseline, gate, changedList };
 }
 

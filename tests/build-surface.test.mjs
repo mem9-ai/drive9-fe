@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { PRIVILEGED_EXAMPLES, privilegedBuildSurface, UNCHANGED } from '../scripts/build-surface.mjs';
 
@@ -14,8 +15,8 @@ test('the privileged surface is exactly what the deploy build can execute', () =
 });
 
 test('the CLI prints the pinned sentinel and one path per line', () => {
-  const cli = new URL('../scripts/build-surface.mjs', import.meta.url);
-  const run = input => spawnSync(process.execPath, [cli.pathname, '--stdin'], { input, encoding: 'utf8' });
+  const cli = fileURLToPath(new URL('../scripts/build-surface.mjs', import.meta.url));
+  const run = input => spawnSync(process.execPath, [cli, '--stdin'], { input, encoding: 'utf8' });
   const unchanged = run('site/index.html\nREADME.md\n');
   assert.equal(unchanged.status, 0);
   assert.equal(unchanged.stdout.trim(), UNCHANGED);
@@ -26,9 +27,9 @@ test('the CLI prints the pinned sentinel and one path per line', () => {
 });
 
 test('renames of privileged files are visible to the gate', () => {
-  const cli = new URL('../scripts/build-surface.mjs', import.meta.url);
+  const cli = fileURLToPath(new URL('../scripts/build-surface.mjs', import.meta.url));
   // GitHub reports both the new and the previous name for a rename.
-  const renamed = spawnSync(process.execPath, [cli.pathname, '--stdin'], {
+  const renamed = spawnSync(process.execPath, [cli, '--stdin'], {
     input: 'docs/notes.md\nscripts/prepare-studio.mjs\n',
     encoding: 'utf8',
   });
@@ -37,8 +38,8 @@ test('renames of privileged files are visible to the gate', () => {
 });
 
 test('the CLI refuses to run without the stdin contract', () => {
-  const cli = new URL('../scripts/build-surface.mjs', import.meta.url);
-  const bare = spawnSync(process.execPath, [cli.pathname], { encoding: 'utf8' });
+  const cli = fileURLToPath(new URL('../scripts/build-surface.mjs', import.meta.url));
+  const bare = spawnSync(process.execPath, [cli], { encoding: 'utf8' });
   assert.equal(bare.status, 2);
   assert.match(bare.stderr, /--stdin/);
 });
