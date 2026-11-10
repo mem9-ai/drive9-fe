@@ -47,11 +47,10 @@ jobs:
             -f name='Studio artifact' -f head_sha="$HEAD_SHA" -f status=in_progress \
             -f details_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq '.id')
           echo "id=$id" >> "$GITHUB_OUTPUT"
-      - name: Fetch candidate and base
+      - name: Fetch the candidate head
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_BASE: ${{ github.event.pull_request.base.sha }}
-        run: git fetch --no-tags --depth=1 origin "$HEAD_SHA" "$PR_BASE"
+        run: git fetch --no-tags --depth=1 origin "$HEAD_SHA"
       - name: Require a maintainer approval for build-surface changes
         env:
           GH_TOKEN: ${{ github.token }}
@@ -63,9 +62,19 @@ jobs:
           # lives in scripts/build-surface.mjs (single source). GitHub's pull
           # request file list is computed against the merge base, so an
           # advancing main cannot make an unrelated PR look like a change.
-          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
-            --jq '.[].filename' > "$RUNNER_TEMP/changed.txt"
-          changed=$(node scripts/build-surface.mjs --stdin < "$RUNNER_TEMP/changed.txt")
+          # The endpoint is documented to cap at 3000 files without an error, so
+          # compare the listing with the PR's own count and fail closed if the
+          # list may be incomplete.
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" > "$RUNNER_TEMP/files.json"
+          listed=$(jq 'flatten | length' "$RUNNER_TEMP/files.json")
+          reported=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.changed_files')
+          if [ "$listed" != "$reported" ]; then
+            echo "Cannot verify every changed file ($listed listed, $reported reported); refusing to evaluate the build surface." >&2
+            exit 1
+          fi
+          # A rename reports the new name only, so include the previous name too.
+          jq -r 'flatten | .[] | .filename, (.previous_filename // empty)' "$RUNNER_TEMP/files.json" > "$RUNNER_TEMP/changed-paths.txt"
+          changed=$(node scripts/build-surface.mjs --stdin < "$RUNNER_TEMP/changed-paths.txt")
           if [ "$changed" = "Build surface unchanged." ]; then
             echo "$changed"
             exit 0
@@ -102,7 +111,7 @@ jobs:
           # `sender` is the review submitter under pull_request_review, so a bot
           # review would otherwise force artifact-only validation on human PRs.
           ARTIFACT_ONLY: ${{ github.event.pull_request.user.type == 'Bot' || github.head_ref == 'automation/studio-console' }}
-        run: node scripts/validate-studio-publication.mjs "$PR_BASE" "$HEAD_SHA" "$ARTIFACT_ONLY" "$RUNNER_TEMP/changed.txt"
+        run: node scripts/validate-studio-publication.mjs "$PR_BASE" "$HEAD_SHA" "$ARTIFACT_ONLY" "$RUNNER_TEMP/changed-paths.txt"
       - name: Report the required result on that same head
         if: always() && steps.check.outputs.id != ''
         env:

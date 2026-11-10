@@ -20,8 +20,23 @@ async function fixture(t) {
   }
   const commit = () => { git('add', '-A'); git('commit', '--allow-empty', '-m', 'fixture'); return git('rev-parse', 'HEAD'); };
   const baseline = commit();
-  const gate = (only = true) => validateStudioPublication(directory, baseline, git('rev-parse', 'HEAD'), only);
-  return { directory, git, commit, baseline, gate };
+  // Production input is GitHub's pull request file list, which reports both sides
+  // of a rename. The fixture builds the same shape from its own repository.
+  // The list lives outside the fixture repository: a list written inside it would
+  // be committed and would show up as a candidate change.
+  const lists = await mkdtemp(join(tmpdir(), 'studio-changed-'));
+  t.after(() => rm(lists, { recursive: true, force: true }));
+  let listCount = 0;
+  const changedList = async () => {
+    const head = git('rev-parse', 'HEAD');
+    const paths = git('diff', '--name-only', '--no-renames', baseline, head).split('\n').filter(Boolean);
+    const file = join(lists, `changed-paths-${listCount++}.txt`);
+    await writeFile(file, paths.join('\n'));
+    return file;
+  };
+  const gate = async (only = true) =>
+    validateStudioPublication(directory, baseline, git('rev-parse', 'HEAD'), only, await changedList());
+  return { directory, git, commit, baseline, gate, changedList };
 }
 
 test('trusted validator accepts artifacts and rejects empty, unrelated and renamed paths', async t => {
@@ -135,25 +150,4 @@ test('the artifact restriction is author-independent', async t => {
   commit();
   // A human PR that publishes an artifact may not smuggle in other changes.
   await assert.rejects(gate(false), /only Console/);
-});
-
-test('a provided change list replaces the git diff for the artifact rule', async t => {
-  const { directory, git, commit, baseline } = await fixture(t);
-  const index = join(directory, 'vendor/studio/index.html');
-  await writeFile(index, (await readFile(index, 'utf8')) + '\n<!-- changed artifact -->');
-  const manifestPath = join(directory, 'vendor/studio-build.json');
-  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
-  manifest.files = await studioHashes(join(directory, 'vendor/studio'));
-  await writeFile(manifestPath, JSON.stringify(manifest));
-  await writeFile(join(directory, 'README.md'), 'unrelated');
-  commit();
-  const head = git('rev-parse', 'HEAD');
-
-  // The git diff mixes the artifact with an unrelated path and is rejected.
-  await assert.rejects(validateStudioPublication(directory, baseline, head, false), /only Console/);
-
-  // GitHub computes the PR file list against the merge base; that list wins.
-  const list = join(directory, 'changed-paths.txt');
-  await writeFile(list, 'vendor/studio/index.html\nvendor/studio-build.json\n');
-  await validateStudioPublication(directory, baseline, head, false, list);
 });
