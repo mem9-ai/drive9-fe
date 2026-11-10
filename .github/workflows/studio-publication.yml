@@ -38,6 +38,31 @@ jobs:
             -f name='Studio artifact' -f head_sha="$HEAD_SHA" -f status=in_progress \
             -f details_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq '.id')
           echo "id=$id" >> "$GITHUB_OUTPUT"
+      - name: Require a maintainer approval for build-surface changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          # Netlify executes site/netlify.toml and scripts/ from the merged
+          # revision, so changing them changes code execution in the deploy
+          # environment. Every PR, not just automation, needs a maintainer
+          # approval for that surface.
+          git fetch --no-tags --depth=1 origin "$HEAD_SHA" "$PR_BASE"
+          if git diff --quiet "$PR_BASE" "$HEAD_SHA" -- site/netlify.toml scripts .github/workflows; then
+            echo "Build surface unchanged."
+            exit 0
+          fi
+          for login in $(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews" --paginate \
+            --jq '.[] | select(.state == "APPROVED") | .user.login' | sort -u); do
+            permission=$(gh api "repos/$GITHUB_REPOSITORY/collaborators/$login/permission" --jq '.permission' 2>/dev/null || echo none)
+            case "$permission" in
+              admin|maintain|write) echo "Build-surface change approved by $login."; exit 0 ;;
+            esac
+          done
+          echo 'Build-surface change needs an approving review from a maintainer with write access.' >&2
+          exit 1
       - name: Validate candidate data with trusted code
         id: validate
         env:

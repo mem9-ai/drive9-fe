@@ -4,7 +4,7 @@ import { cp, mkdtemp, mkdir, readFile, rm, writeFile, rename, symlink, stat } fr
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { validateStudioPublication } from '../scripts/validate-studio-publication.mjs';
+import { privilegedBuildSurface, validateStudioPublication } from '../scripts/validate-studio-publication.mjs';
 import { studioHashes } from '../scripts/studio-artifact.mjs';
 
 async function fixture(t) {
@@ -121,4 +121,27 @@ test('candidate symlinks, missing files and corrupt hashes fail', async t => {
   await writeFile(index, 'corrupt bytes');
   commit();
   await assert.rejects(gate(), /checksums/);
+});
+
+test('the artifact restriction is author-independent', async t => {
+  const { directory, commit, gate } = await fixture(t);
+  const index = join(directory, 'vendor/studio/index.html');
+  await writeFile(index, (await readFile(index, 'utf8')) + '\n<!-- changed artifact -->');
+  const manifestPath = join(directory, 'vendor/studio-build.json');
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  manifest.files = await studioHashes(join(directory, 'vendor/studio'));
+  await writeFile(manifestPath, JSON.stringify(manifest));
+  await writeFile(join(directory, 'README.md'), 'unrelated');
+  commit();
+  // A human PR that publishes an artifact may not smuggle in other changes.
+  await assert.rejects(gate(false), /only Console/);
+});
+
+test('the privileged build surface covers exactly what the deploy build runs', () => {
+  for (const path of ['site/netlify.toml', 'scripts/prepare-studio.mjs', 'scripts/netlify-ignore.mjs', '.github/workflows/studio-publication.yml']) {
+    assert.ok(privilegedBuildSurface(path), path);
+  }
+  for (const path of ['site/index.html', 'tests/netlify-build.test.mjs', 'vendor/studio/index.html']) {
+    assert.ok(!privilegedBuildSurface(path), path);
+  }
 });

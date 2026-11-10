@@ -9,15 +9,26 @@ import { prepareStudio } from './prepare-studio.mjs';
 
 const artifactPath = path => path.startsWith('vendor/studio/') || path === 'vendor/studio-build.json';
 
+// Files the privileged Netlify build executes (or that decide what it executes).
+// A change here is a change to code execution in the deploy environment, so the
+// trusted workflow requires a maintainer approval for it on every PR.
+export const privilegedBuildSurface = path =>
+  path === 'site/netlify.toml' ||
+  path.startsWith('scripts/') ||
+  path.startsWith('.github/workflows/');
+
 // Candidate Git objects are data only. All imports and the site template above/below
 // come from the trusted default-branch checkout, never from the PR tree.
 export async function validateStudioPublication(repository, base, head, artifactOnly) {
   for (const sha of [base, head]) assert.match(sha, /^[a-f0-9]{40}$/);
   assert.equal(typeof artifactOnly, 'boolean');
   const git = (...args) => execFileSync('git', args, { cwd: repository, maxBuffer: 32 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
-  if (artifactOnly) {
-    const files = git('diff', '--name-only', '--no-renames', '-z', base, head).toString().split('\0').filter(Boolean);
-    assert.ok(files.length > 0, 'Empty publication.');
+  const files = git('diff', '--name-only', '--no-renames', '-z', base, head).toString().split('\0').filter(Boolean);
+  assert.ok(files.length > 0, 'Empty publication.');
+  // Publishing an artifact is author-independent: a candidate that touches the
+  // Console artifact may change nothing else, bot or human. Previously only bot
+  // PRs were restricted, so a human PR could mix the artifact with arbitrary code.
+  if (artifactOnly || files.some(artifactPath)) {
     assert.ok(files.every(artifactPath), 'Publication may change only Console artifacts and provenance.');
   }
   const temporary = await mkdtemp(join(tmpdir(), 'studio-candidate-'));
