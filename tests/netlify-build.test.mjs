@@ -35,13 +35,13 @@ function build(options, origin) {
   });
 }
 
-// The privileged Netlify build must not execute candidate test files. Tests run
-// in the "Website tests" workflow, which is also a required check.
-test('the Netlify build executes no test files or shell globs', async t => {
+// The privileged Netlify build executes exactly one known script. Tests run in
+// the Website tests workflow, so nothing here needs to run them.
+test('the Netlify build is one pinned, artifact-verifying command', async t => {
   const options = await checkout(t);
-  assert.doesNotMatch(options.command, /--test\b/, 'the Netlify build must not run tests');
-  assert.doesNotMatch(options.command, /[*?]/, 'the Netlify build must not execute a glob');
-  assert.match(options.command, /node \.\.\/scripts\/prepare-studio\.mjs$/);
+  // Equality, not a suffix/pattern match: chained commands such as
+  // `node ../scripts/evil.mjs && node ../scripts/prepare-studio.mjs` must fail.
+  assert.equal(options.command.trim(), 'node ../scripts/prepare-studio.mjs');
 });
 
 // Outside scripts/*.test.mjs so executing the actual Netlify command cannot
