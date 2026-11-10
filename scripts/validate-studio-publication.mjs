@@ -9,14 +9,6 @@ import { prepareStudio } from './prepare-studio.mjs';
 
 const artifactPath = path => path.startsWith('vendor/studio/') || path === 'vendor/studio-build.json';
 
-// Files the privileged Netlify build executes (or that decide what it executes).
-// A change here is a change to code execution in the deploy environment, so the
-// trusted workflow requires a maintainer approval for it on every PR.
-export const privilegedBuildSurface = path =>
-  path === 'site/netlify.toml' ||
-  path.startsWith('scripts/') ||
-  path.startsWith('.github/workflows/');
-
 // Candidate Git objects are data only. All imports and the site template above/below
 // come from the trusted default-branch checkout, never from the PR tree.
 export async function validateStudioPublication(repository, base, head, artifactOnly) {
