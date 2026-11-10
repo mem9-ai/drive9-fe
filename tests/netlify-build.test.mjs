@@ -35,6 +35,15 @@ function build(options, origin) {
   });
 }
 
+// The privileged Netlify build must not execute candidate test files. Tests run
+// in the "Website tests" workflow, which is also a required check.
+test('the Netlify build executes no test files or shell globs', async t => {
+  const options = await checkout(t);
+  assert.doesNotMatch(options.command, /--test\b/, 'the Netlify build must not run tests');
+  assert.doesNotMatch(options.command, /[*?]/, 'the Netlify build must not execute a glob');
+  assert.match(options.command, /node \.\.\/scripts\/prepare-studio\.mjs$/);
+});
+
 // Outside scripts/*.test.mjs so executing the actual Netlify command cannot
 // recursively launch this integration test.
 test('Netlify base=site builds and publishes the homepage and Studio together', async t => {

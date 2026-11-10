@@ -1,0 +1,7 @@
+# Files that decide what the privileged Netlify build executes. Netlify runs the
+# build command from the built revision, so changes here change code execution in
+# the deploy environment and need an explicit maintainer approval.
+/site/netlify.toml          @qiffang @srstack
+/scripts/                   @qiffang @srstack
+/.github/workflows/         @qiffang @srstack
+/vendor/studio-build.json   @qiffang @srstack
