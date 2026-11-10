@@ -5,6 +5,7 @@
 # broader review set and must stay a superset of it.
 /.github/CODEOWNERS         @qiffang @srstack
 /.github/workflows/         @qiffang @srstack
+/netlify.toml               @qiffang @srstack
 /site/netlify.toml          @qiffang @srstack
 /site/package.json          @qiffang @srstack
 /site/package-lock.json     @qiffang @srstack

@@ -4,10 +4,13 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { changedBuildSurface, privilegedBuildSurface } from '../scripts/build-surface.mjs';
+import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { changedBuildSurface, privilegedBuildSurface, UNCHANGED } from '../scripts/build-surface.mjs';
 
 test('the privileged surface is exactly what the deploy build can execute', () => {
   for (const path of [
+    'netlify.toml',
     'site/netlify.toml',
     'scripts/prepare-studio.mjs',
     'scripts/netlify-ignore.mjs',
@@ -60,4 +63,39 @@ test('changedBuildSurface reports only the privileged subset of a candidate diff
     'scripts/evil.mjs',
     'site/package.json',
   ]);
+});
+
+test('the CLI prints the pinned sentinel and one path per line', () => {
+  const cli = new URL('../scripts/build-surface.mjs', import.meta.url);
+  const run = input => spawnSync(process.execPath, [cli.pathname, '--stdin'], { input, encoding: 'utf8' });
+  const unchanged = run('site/index.html\nREADME.md\n');
+  assert.equal(unchanged.status, 0);
+  assert.equal(unchanged.stdout.trim(), UNCHANGED);
+  assert.equal(UNCHANGED, 'Build surface unchanged.');
+  const changed = run('scripts/evil.mjs\nsite/index.html\nsite/package.json\n');
+  assert.equal(changed.status, 0);
+  assert.deepEqual(changed.stdout.trim().split('\n'), ['scripts/evil.mjs', 'site/package.json']);
+});
+
+test('CODEOWNERS covers the whole enforced surface', () => {
+  const entries = readFileSync(new URL('../.github/CODEOWNERS', import.meta.url), 'utf8')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line && !line.startsWith('#'))
+    .map(line => line.split(/\s+/)[0].replace(/^\//, ''));
+  const covers = path => entries.some(pattern =>
+    pattern.endsWith('/') ? path.startsWith(pattern) : path === pattern);
+  for (const path of [
+    'netlify.toml',
+    'site/netlify.toml',
+    'scripts/prepare-studio.mjs',
+    '.github/workflows/studio-publication.yml',
+    'package.json',
+    'package-lock.json',
+    'site/package.json',
+    'site/package-lock.json',
+  ]) {
+    assert.ok(privilegedBuildSurface(path), path);
+    assert.ok(covers(path), `CODEOWNERS must cover ${path}`);
+  }
 });

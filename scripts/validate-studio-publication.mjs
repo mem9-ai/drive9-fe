@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
 import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -11,11 +12,16 @@ const artifactPath = path => path.startsWith('vendor/studio/') || path === 'vend
 
 // Candidate Git objects are data only. All imports and the site template above/below
 // come from the trusted default-branch checkout, never from the PR tree.
-export async function validateStudioPublication(repository, base, head, artifactOnly) {
+export async function validateStudioPublication(repository, base, head, artifactOnly, changedFilesPath = null) {
   for (const sha of [base, head]) assert.match(sha, /^[a-f0-9]{40}$/);
   assert.equal(typeof artifactOnly, 'boolean');
   const git = (...args) => execFileSync('git', args, { cwd: repository, maxBuffer: 32 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
-  const files = git('diff', '--name-only', '--no-renames', '-z', base, head).toString().split('\0').filter(Boolean);
+  // GitHub's pull request file list is computed against the merge base; when the
+  // workflow provides it, use it so an advancing main cannot add unrelated paths
+  // to the candidate's diff.
+  const files = changedFilesPath
+    ? (await readFile(changedFilesPath, 'utf8')).split('\n').map(line => line.trim()).filter(Boolean)
+    : git('diff', '--name-only', '--no-renames', '-z', base, head).toString().split('\0').filter(Boolean);
   assert.ok(files.length > 0, 'Empty publication.');
   // Publishing an artifact is author-independent: a candidate that touches the
   // Console artifact may change nothing else, bot or human. Previously only bot
@@ -48,9 +54,9 @@ export async function validateStudioPublication(repository, base, head, artifact
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
-    const [base, head, artifactOnly] = process.argv.slice(2);
+    const [base, head, artifactOnly, changedFilesPath] = process.argv.slice(2);
     assert.ok(['true', 'false'].includes(artifactOnly));
-    await validateStudioPublication(process.cwd(), base, head, artifactOnly === 'true');
+    await validateStudioPublication(process.cwd(), base, head, artifactOnly === 'true', changedFilesPath ?? null);
     console.log('Candidate artifacts validated by trusted main code.');
   } catch {
     console.error('Studio publication validation failed. Candidate was not executed.');
