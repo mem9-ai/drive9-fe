@@ -4,10 +4,10 @@ on:
   pull_request_target:
     branches: [main]
     types: [opened, synchronize, reopened]
-  # Submitting a review re-runs the trusted validation, so a maintainer
-  # approval turns the required check green without a manual re-run.
-  pull_request_review:
-    types: [submitted, dismissed]
+  # `pull_request_review` is added in a follow-up PR once the gate modules are on
+  # `main`: for that event the workflow file comes from the candidate head while
+  # the checkout is the trusted base, so a PR that introduces the modules cannot
+  # re-run itself on approval. Until then, re-run this workflow after approving.
 
 permissions:
   contents: read
@@ -22,13 +22,12 @@ concurrency:
 jobs:
   validate:
     name: Validate with trusted main
-    # pull_request_review does not honour the branch filter above.
     if: github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      # Never check out or execute candidate code in this workflow. `github.sha`
-      # is the PR head for pull_request_review, so the base commit is explicit.
+      # Never check out or execute candidate code in this workflow: the base
+      # commit is explicit, never `github.sha`.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.base.sha }}
@@ -99,8 +98,9 @@ jobs:
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
-          # `sender` is the review submitter under pull_request_review, so a bot
-          # review would otherwise force artifact-only validation on human PRs.
+          # Bot-authored PRs are artifact-only. `sender` is deliberately not
+          # consulted: with a review trigger it is the reviewer, not the author,
+          # so a bot review would force artifact-only validation on human PRs.
           ARTIFACT_ONLY: ${{ github.event.pull_request.user.type == 'Bot' || github.head_ref == 'automation/studio-console' }}
         run: node scripts/validate-studio-publication.mjs "$HEAD_SHA" "$ARTIFACT_ONLY" "$RUNNER_TEMP/changed-paths.txt"
       - name: Report the required result on that same head
