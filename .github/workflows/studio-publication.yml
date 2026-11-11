@@ -4,10 +4,13 @@ on:
   pull_request_target:
     branches: [main]
     types: [opened, synchronize, reopened]
-  # `pull_request_review` is added in a follow-up PR once the gate modules are on
-  # `main`: for that event the workflow file comes from the candidate head while
-  # the checkout is the trusted base, so a PR that introduces the modules cannot
-  # re-run itself on approval. Until then, re-run this workflow after approving.
+  # Submitting a review re-runs the trusted validation, so a maintainer approval
+  # turns the required check green without a manual re-run. This trigger only
+  # works once the gate modules are on `main` (for this event the workflow file
+  # comes from the candidate head while the checkout is the trusted base), which
+  # is why it lands after the gate itself.
+  pull_request_review:
+    types: [submitted, dismissed]
 
 permissions:
   contents: read
