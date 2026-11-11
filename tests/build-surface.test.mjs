@@ -9,7 +9,7 @@ test('the privileged surface is exactly what the deploy build can execute', () =
   for (const path of PRIVILEGED_EXAMPLES) {
     assert.ok(privilegedBuildSurface(path), path);
   }
-  for (const path of ['site/index.html', 'tests/build-surface.test.mjs', 'vendor/studio/index.html', 'README.md']) {
+  for (const path of ['site/index.html', 'site/skill.md', 'tests/build-surface.test.mjs', 'README.md']) {
     assert.ok(!privilegedBuildSurface(path), path);
   }
 });

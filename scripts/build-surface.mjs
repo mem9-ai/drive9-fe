@@ -11,13 +11,34 @@ import { readFileSync, realpathSync } from 'node:fs';
 // below are the canonical list the tests and the CODEOWNERS coverage check use,
 // so widening the surface cannot silently drift from either.
 // Netlify installs from whichever of these it finds (root or base directory), and
-// a lockfile or registry config decides what the installer downloads.
+// a lockfile or registry config decides what the installer downloads. The non-Node
+// manifests are inert for today's static build but are listed so a build command
+// that starts using them cannot silently become an ungated execution path.
 const DEPENDENCY_FILES = [
   'package.json',
   'package-lock.json',
   'yarn.lock',
   'pnpm-lock.yaml',
   '.npmrc',
+  '.yarnrc',
+  'bun.lockb',
+  'deno.json',
+  'deno.lock',
+  'composer.json',
+  'composer.lock',
+  'Gemfile',
+  'Gemfile.lock',
+  'requirements.txt',
+  'pyproject.toml',
+];
+
+// Code the site publishes and users then execute: the installers and the Console
+// bundle. Netlify does not execute these during the build, but a change to them
+// changes what every visitor runs, so they need the same maintainer approval.
+const PUBLISHED_CODE = [
+  'site/install.sh',
+  'site/install.ps1',
+  'vendor/studio-build.json',
 ];
 
 export const privilegedBuildSurface = path =>
@@ -25,6 +46,8 @@ export const privilegedBuildSurface = path =>
   path === 'site/netlify.toml' ||
   path.startsWith('scripts/') ||
   path.startsWith('.github/workflows/') ||
+  path.startsWith('vendor/studio/') ||
+  PUBLISHED_CODE.includes(path) ||
   DEPENDENCY_FILES.includes(path) ||
   DEPENDENCY_FILES.map(name => `site/${name}`).includes(path);
 
@@ -34,16 +57,25 @@ export const PRIVILEGED_EXAMPLES = [
   'scripts/prepare-studio.mjs',
   'scripts/netlify-ignore.mjs',
   '.github/workflows/studio-publication.yml',
+  'site/install.sh',
+  'site/install.ps1',
+  'vendor/studio/index.html',
+  'vendor/studio/assets/app.js',
+  'vendor/studio-build.json',
   'package.json',
   'package-lock.json',
   'yarn.lock',
   'pnpm-lock.yaml',
   '.npmrc',
+  'composer.json',
+  'Gemfile',
+  'requirements.txt',
   'site/package.json',
   'site/package-lock.json',
   'site/yarn.lock',
   'site/pnpm-lock.yaml',
   'site/.npmrc',
+  'site/composer.json',
 ];
 
 export const UNCHANGED = 'Build surface unchanged.';
