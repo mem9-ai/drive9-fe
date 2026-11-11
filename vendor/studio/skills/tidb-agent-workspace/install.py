@@ -1,4 +1,4 @@
-"""Install only the TiDB Agent Workspace skill and its private Python environment."""
+"""Install only the TiDB AgentSpace skill and its private Python environment."""
 
 from contextlib import contextmanager
 import hashlib
@@ -33,7 +33,7 @@ def installation_lock(path):
 
 def install():
     if sys.version_info < (3, 9, 2):
-        sys.exit("The TiDB Agent Workspace report tool requires Python 3.9.2 or later.")
+        sys.exit("The TiDB AgentSpace report tool requires Python 3.9.2 or later.")
     skills = Path.home() / ".agents" / "skills" / "drive9-workspace"
     runtime = Path.home() / ".drive9" / "report-runtime"
     runtime.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -111,7 +111,7 @@ def install_assets(skills, runtime):
 
 # fmt: off
 LEGACY_ASSETS = {"SKILL.md":"69989c9db22cb59664962886bc0fd2f2ade4b1c1e07b249b38ab3038d165fdce","report.py":"4124d8ce10041b0fe6ff06f5ce22d975ccd1f433338ed51071441eda43db6f06","private_csv.py":"2f964c6b234456a80e5d5ace57d3a70882375dbeddbedee87fe22d970d3cc262"}
-ASSETS = {"SKILL.md":"6f9939ce55b1cbb817dee3f743c25fa3874904c7975a1cd0929246fb0caddef5","private-csv.md":"8d3acadc2f43ee81e3235bc66aed345a2064ed7046cecdbaec2391957fcffcc4","workspace-api.md":"93d3acc36e4f55d34bf4700a3634373cfbedd96514a12171af51f9e44cb4ed0b","report.py":"b217ce1e608b3b48258cf373bddba3cf80ddf6b2237d4d1fe584af027c397be7","private_csv.py":"2a6a8addf903ee353c2d4a8c087d02ff3fe5203255fd16f6480f874f66c4a207"}
+ASSETS = {"SKILL.md":"f09c9b63c199608373bb0aa6238ff0c8ebd67c85ef37d1ac1ae4f4fa54ff815d","private-csv.md":"8d3acadc2f43ee81e3235bc66aed345a2064ed7046cecdbaec2391957fcffcc4","workspace-api.md":"93d3acc36e4f55d34bf4700a3634373cfbedd96514a12171af51f9e44cb4ed0b","report.py":"f6bd6d5f22132028b972eca9e6cd34363e1c3352df4dccf84b6176e5cf648ce4","private_csv.py":"8da55f5d495a6da7811bb5d8ea3a1880d91a3ad4cf11e0402d5808632281f6b5"}
 # fmt: on
 
 if __name__ == "__main__":

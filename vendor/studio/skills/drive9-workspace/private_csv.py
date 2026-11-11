@@ -1,4 +1,4 @@
-"""Open or resume the selected private CSV in this project's 48-hour TiDB Agent Workspace."""
+"""Open or resume the selected private CSV in this project's 48-hour TiDB AgentSpace."""
 
 import argparse
 import csv
@@ -27,7 +27,7 @@ LIMIT = 1024 * 1024
 class Rejected(Exception):
     def __init__(self, status, code):
         self.status = status
-        super().__init__(f"TiDB Agent Workspace returned {status} ({code}).")
+        super().__init__(f"TiDB AgentSpace returned {status} ({code}).")
 
 
 def request(base, key, route, method="GET", body=None, headers=None):
