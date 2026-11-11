@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { PRIVILEGED_EXAMPLES, privilegedBuildSurface, UNCHANGED } from '../scripts/build-surface.mjs';
 
-test('the privileged surface is exactly what the deploy build can execute', () => {
+test('the privileged surface is exactly what the project ships or executes', () => {
   for (const path of PRIVILEGED_EXAMPLES) {
     assert.ok(privilegedBuildSurface(path), path);
   }

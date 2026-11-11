@@ -4,13 +4,10 @@ on:
   pull_request_target:
     branches: [main]
     types: [opened, synchronize, reopened]
-  # Submitting a review re-runs the trusted validation, so a maintainer approval
-  # turns the required check green without a manual re-run. This trigger only
-  # works once the gate modules are on `main` (for this event the workflow file
-  # comes from the candidate head while the checkout is the trusted base), which
-  # is why it lands after the gate itself.
-  pull_request_review:
-    types: [submitted, dismissed]
+  # `pull_request_review` is deliberately absent: GitHub runs that event with the
+  # workflow file from the pull request head, and this workflow issues the
+  # required check, so a candidate could register a passing check on itself.
+  # After an approval, re-run this workflow (or push) to turn the check green.
 
 permissions:
   contents: read

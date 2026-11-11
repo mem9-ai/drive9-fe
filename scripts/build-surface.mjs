@@ -41,15 +41,21 @@ const PUBLISHED_CODE = [
   'vendor/studio-build.json',
 ];
 
+// Precomputed once: this predicate runs over every changed path.
+const SITE_DEPENDENCY_FILES = DEPENDENCY_FILES.map(name => `site/${name}`);
+const EXACT_PATHS = new Set([
+  'netlify.toml',
+  'site/netlify.toml',
+  ...PUBLISHED_CODE,
+  ...DEPENDENCY_FILES,
+  ...SITE_DEPENDENCY_FILES,
+]);
+
 export const privilegedBuildSurface = path =>
-  path === 'netlify.toml' ||
-  path === 'site/netlify.toml' ||
+  EXACT_PATHS.has(path) ||
   path.startsWith('scripts/') ||
   path.startsWith('.github/workflows/') ||
-  path.startsWith('vendor/studio/') ||
-  PUBLISHED_CODE.includes(path) ||
-  DEPENDENCY_FILES.includes(path) ||
-  DEPENDENCY_FILES.map(name => `site/${name}`).includes(path);
+  path.startsWith('vendor/studio/');
 
 export const PRIVILEGED_EXAMPLES = [
   'netlify.toml',
@@ -67,15 +73,31 @@ export const PRIVILEGED_EXAMPLES = [
   'yarn.lock',
   'pnpm-lock.yaml',
   '.npmrc',
+  '.yarnrc',
+  'bun.lockb',
+  'deno.json',
+  'deno.lock',
   'composer.json',
+  'composer.lock',
   'Gemfile',
+  'Gemfile.lock',
   'requirements.txt',
+  'pyproject.toml',
   'site/package.json',
   'site/package-lock.json',
   'site/yarn.lock',
   'site/pnpm-lock.yaml',
   'site/.npmrc',
+  'site/.yarnrc',
+  'site/bun.lockb',
+  'site/deno.json',
+  'site/deno.lock',
   'site/composer.json',
+  'site/composer.lock',
+  'site/Gemfile',
+  'site/Gemfile.lock',
+  'site/requirements.txt',
+  'site/pyproject.toml',
 ];
 
 export const UNCHANGED = 'Build surface unchanged.';
