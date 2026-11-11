@@ -1,13 +1,13 @@
 ---
 name: tidb-agent-workspace
-description: Continue a TiDB Agent Workspace report across local coding agents, run its free public sales sample, or work with a selected private CSV or authenticated Workspace.
+description: Continue a TiDB AgentSpace report across local coding agents, run its free public sales sample, or work with a selected private CSV or authenticated Workspace.
 ---
 
-# TiDB Agent Workspace
+# TiDB AgentSpace
 
 Use the current project and the user's requested data. The public sample is a bounded demonstration, not access to their account or a general database. Private data belongs in [the private CSV workflow](private-csv.md); existing customer resources use [the authenticated API](workspace-api.md). Ask which source only when ambiguous.
 
-The product and public skill are **TiDB Agent Workspace**. `drive9.ai` is the service domain. Older public URLs are compatibility aliases. Existing local `~/.drive9/` and `~/.agents/skills/drive9-workspace/` locations are retained deliberately so updates and other agents reuse the same credentials and reports; do not rename them.
+The product and public skill are **TiDB AgentSpace**. `drive9.ai` is the service domain. Older public URLs are compatibility aliases. Existing local `~/.drive9/` and `~/.agents/skills/drive9-workspace/` locations are retained deliberately so updates and other agents reuse the same credentials and reports; do not rename them.
 
 ## Public sample: reuse the installed Python helper
 

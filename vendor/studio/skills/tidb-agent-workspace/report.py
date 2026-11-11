@@ -1,4 +1,4 @@
-"""TiDB Agent Workspace free public-sample report. Run with the installation's isolated Python."""
+"""TiDB AgentSpace free public-sample report. Run with the installation's isolated Python."""
 
 import argparse
 import base64
@@ -454,7 +454,7 @@ def main():
         print(json.dumps(choices) if args.json else str(error))
         return 2
     except (ValueError, TrialError, URLError, OSError, KeyringError, TimeoutError) as error:
-        print(f"TiDB Agent Workspace: {error}", file=sys.stderr)
+        print(f"TiDB AgentSpace: {error}", file=sys.stderr)
         return 1
 
 
