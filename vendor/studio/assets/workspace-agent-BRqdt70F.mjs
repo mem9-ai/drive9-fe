@@ -811,7 +811,7 @@ async function connectAgent(options) {
 		renew: connected.renew
 	};
 }
-// src/api/agent-sdk.ts
+// src/clients/javascript/workspace-agent.ts
 /** A Workspace connection configured with one public endpoint and one API key. */
 async function connectWorkspace(options) {
 	const connection = await connectAgent({
