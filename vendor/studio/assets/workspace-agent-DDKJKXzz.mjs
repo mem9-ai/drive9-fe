@@ -409,6 +409,31 @@ function removeTrailingSlash(url) {
 	if (url.endsWith("/")) return url.substring(0, url.length - 1);
 	return url;
 }
+// src/api/api-path.ts
+/**
+* Whether the value is an origin-relative API path made of ASCII word segments, such as
+* `/studio/api` or `/studio/api/`. Empty interior segments, `.`/`..`, percent-encoding,
+* queries and fragments are rejected.
+*
+* The single forward scan replaces a nested-quantifier regular expression that could
+* backtrack exponentially on hostile input such as a long run of dashes.
+*/
+function isBoundedApiPath(value) {
+	if (!value.startsWith("/")) return false;
+	let segmentEmpty = true;
+	for (let index = 1; index < value.length; index += 1) {
+		const code = value.charCodeAt(index);
+		if (code === 47) {
+			if (segmentEmpty) return false;
+			segmentEmpty = true;
+		} else if (isPathWordCharacter(code)) segmentEmpty = false;
+		else return false;
+	}
+	return true;
+}
+function isPathWordCharacter(code) {
+	return code >= 48 && code <= 57 || code >= 65 && code <= 90 || code >= 97 && code <= 122 || code === 95 || code === 45;
+}
 // src/api/global-client.ts
 /** The Global authority manages Keys and discovery; a data request uses a Region client. */
 function createGlobalApiClient(origin, trustedOrigins, fetcher = fetch, owner = false) {
@@ -418,7 +443,7 @@ function createGlobalApiClient(origin, trustedOrigins, fetcher = fetch, owner = 
 		"localhost",
 		"[::1]"
 	].includes(url.hostname);
-	if (url.search || url.hash || !/^\/(?:[A-Za-z0-9_-]+\/?)*$/.test(url.pathname) || !trustedOrigins.includes(url.origin) || url.protocol !== "https:" && !(url.protocol === "http:" && loopback) || url.username || url.password) throw new Error("Untrusted Global origin.");
+	if (url.search || url.hash || !isBoundedApiPath(url.pathname) || !trustedOrigins.includes(url.origin) || url.protocol !== "https:" && !(url.protocol === "http:" && loopback) || url.username || url.password) throw new Error("Untrusted Global origin.");
 	const boundedFetch = (input, init) => {
 		const request = new Request(input, init);
 		const target = new URL(request.url);
