@@ -3,7 +3,11 @@
 
 [build]
   ignore = "node ./../scripts/netlify-ignore.mjs"
-  command = "node --test ../scripts/*.test.mjs && node ../scripts/prepare-studio.mjs"
+  # Netlify runs this command from the built revision, so it must stay one
+  # pinned script and never execute test files (or a `scripts/*.test.mjs` glob)
+  # that a candidate can add. Tests run in the separate Website tests workflow;
+  # this step verifies the pinned Console artifact and prepares static output.
+  command = "node ../scripts/prepare-studio.mjs"
   publish = "."
 
 [build.environment]

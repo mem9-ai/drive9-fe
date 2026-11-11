@@ -4,10 +4,16 @@ on:
   pull_request_target:
     branches: [main]
     types: [opened, synchronize, reopened]
+  # `pull_request_review` is added in a follow-up PR once the gate modules are on
+  # `main`: for that event the workflow file comes from the candidate head while
+  # the checkout is the trusted base, so a PR that introduces the modules cannot
+  # re-run itself on approval. Until then, re-run this workflow after approving.
 
 permissions:
   contents: read
   checks: write
+  # Required to read the PR's reviews for the build-surface approval gate.
+  pull-requests: read
 
 concurrency:
   group: studio-publication-${{ github.event.pull_request.number }}
@@ -16,13 +22,15 @@ concurrency:
 jobs:
   validate:
     name: Validate with trusted main
+    if: github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      # Never check out or execute candidate code in this workflow.
+      # Never check out or execute candidate code in this workflow: the base
+      # commit is explicit, never `github.sha`.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -38,15 +46,63 @@ jobs:
             -f name='Studio artifact' -f head_sha="$HEAD_SHA" -f status=in_progress \
             -f details_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq '.id')
           echo "id=$id" >> "$GITHUB_OUTPUT"
+      - name: Fetch the candidate head
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: git fetch --no-tags --depth=1 origin "$HEAD_SHA"
+      - name: Require a maintainer approval for build-surface changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # Netlify executes this surface from the merged revision, so a change
+          # to it changes code execution in the deploy environment. The decision
+          # logic lives in scripts/publication-approval.mjs and
+          # scripts/build-surface.mjs so it is covered by tests.
+          verified=0
+          for attempt in 1 2; do
+            gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" > "$RUNNER_TEMP/files.json"
+            gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > "$RUNNER_TEMP/pull.json"
+            if node scripts/publication-approval.mjs changed-paths \
+              --files "$RUNNER_TEMP/files.json" --pull "$RUNNER_TEMP/pull.json" --head "$HEAD_SHA" \
+              > "$RUNNER_TEMP/changed-paths.txt"; then
+              verified=1
+              break
+            fi
+            echo "Changed-file listing not verifiable yet (attempt $attempt); retrying." >&2
+            sleep 3
+          done
+          if [ "$verified" != 1 ]; then
+            echo "Refusing to evaluate the build surface: the changed-file list is incomplete or stale." >&2
+            exit 1
+          fi
+          changed=$(node scripts/build-surface.mjs --stdin < "$RUNNER_TEMP/changed-paths.txt")
+          case "$changed" in
+            "Build surface unchanged.")
+              echo "$changed"
+              exit 0
+              ;;
+            "")
+              echo "Build-surface evaluation produced no output; failing closed." >&2
+              exit 1
+              ;;
+          esac
+          echo "Build surface changed:"
+          echo "$changed"
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews?per_page=100" > "$RUNNER_TEMP/reviews.json"
+          node scripts/publication-approval.mjs approvals \
+            --reviews "$RUNNER_TEMP/reviews.json" --head "$HEAD_SHA"
       - name: Validate candidate data with trusted code
         id: validate
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
-          ARTIFACT_ONLY: ${{ github.event.pull_request.user.type == 'Bot' || github.event.sender.type == 'Bot' || github.head_ref == 'automation/studio-console' }}
-        run: |
-          git fetch --no-tags --depth=1 origin "$HEAD_SHA" "$PR_BASE"
-          node scripts/validate-studio-publication.mjs "$PR_BASE" "$HEAD_SHA" "$ARTIFACT_ONLY"
+          # Bot-authored PRs are artifact-only. `sender` is deliberately not
+          # consulted: with a review trigger it is the reviewer, not the author,
+          # so a bot review would force artifact-only validation on human PRs.
+          ARTIFACT_ONLY: ${{ github.event.pull_request.user.type == 'Bot' || github.head_ref == 'automation/studio-console' }}
+        run: node scripts/validate-studio-publication.mjs "$HEAD_SHA" "$ARTIFACT_ONLY" "$RUNNER_TEMP/changed-paths.txt"
       - name: Report the required result on that same head
         if: always() && steps.check.outputs.id != ''
         env:

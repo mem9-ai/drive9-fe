@@ -21,9 +21,10 @@ async function checkout(t) {
   // These two settings are single-line TOML strings. Run the checked-in command
   // from the production base directory; baseRelDir=true resolves publish here too.
   const command = JSON.parse(config.match(/^\s*command = (".*")$/m)[1]);
+  const ignore = JSON.parse(config.match(/^\s*ignore = (".*")$/m)[1]);
   const publish = JSON.parse(config.match(/^\s*publish = (".*")$/m)[1]);
   const base = join(root, 'site');
-  return { root, base, command, publish: resolve(base, publish) };
+  return { root, base, command, ignore, publish: resolve(base, publish) };
 }
 
 function build(options, origin) {
@@ -34,6 +35,17 @@ function build(options, origin) {
     timeout: 30_000,
   });
 }
+
+// The privileged Netlify build executes exactly one known script. Tests run in
+// the Website tests workflow, so nothing here needs to run them.
+test('the Netlify build is one pinned, artifact-verifying command', async t => {
+  const options = await checkout(t);
+  // Equality, not a suffix/pattern match: chained commands such as
+  // `node ../scripts/evil.mjs && node ../scripts/prepare-studio.mjs` must fail.
+  assert.equal(options.command.trim(), 'node ../scripts/prepare-studio.mjs');
+  // `ignore` also runs candidate-controlled code before the build command.
+  assert.equal(options.ignore.trim(), 'node ./../scripts/netlify-ignore.mjs');
+});
 
 // Outside scripts/*.test.mjs so executing the actual Netlify command cannot
 // recursively launch this integration test.

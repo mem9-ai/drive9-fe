@@ -1,0 +1,21 @@
+# Files that decide what the privileged Netlify build executes. Netlify runs the
+# build command from the built revision, so changes here change code execution in
+# the deploy environment and need an explicit maintainer approval.
+# The enforced surface list is scripts/build-surface.mjs; this file is the
+# broader review set and must stay a superset of it.
+/.github/CODEOWNERS         @qiffang @srstack
+/.github/workflows/         @qiffang @srstack
+/netlify.toml               @qiffang @srstack
+/site/netlify.toml          @qiffang @srstack
+/site/package.json          @qiffang @srstack
+/site/package-lock.json     @qiffang @srstack
+/package.json               @qiffang @srstack
+/package-lock.json          @qiffang @srstack
+/yarn.lock                 @qiffang @srstack
+/pnpm-lock.yaml             @qiffang @srstack
+/.npmrc                     @qiffang @srstack
+/site/yarn.lock             @qiffang @srstack
+/site/pnpm-lock.yaml        @qiffang @srstack
+/site/.npmrc                @qiffang @srstack
+/scripts/                   @qiffang @srstack
+/vendor/studio-build.json   @qiffang @srstack
