@@ -1,5 +1,5 @@
 import { readFileSync, realpathSync } from 'node:fs';
-import { isConsoleArtifactPath } from './build-surface.mjs';
+import { changedSurface, isConsoleArtifactPath, UNCHANGED } from './build-surface.mjs';
 
 // Trusted decisions for the Studio publication gate. This logic used to live as
 // inline jq in `.github/workflows/studio-publication.yml`, where no test could
@@ -79,6 +79,31 @@ export function changedPaths(files, pull, head) {
   return [...paths];
 }
 
+// The whole gate decision, in one tested place. The workflow fetches GitHub's
+// objects and calls this; it no longer interprets the outcome itself.
+//   'unchanged'   — nothing privileged changed, pass
+//   'exempt'      — the publisher app shipped nothing but the artifact, pass
+//   'approved'    — a maintainer approved this exact head, pass
+//   'approval'    — a privileged change without an approval, fail
+//   'unverifiable'— the file list cannot be trusted yet, retry
+// Any other shape is a bug in this module, not in the workflow.
+export function gate({ files, pull, reviews, head, authorType, authorLogin }) {
+  const paths = changedPaths(files, pull, head);
+  const changed = changedSurface(paths);
+  if (changed.length === 0) return { outcome: 'unchanged', changed, approved: [] };
+  if (botArtifactOnlyPublication(paths, authorType, authorLogin)) {
+    return { outcome: 'exempt', changed, approved: [] };
+  }
+  const approved = approvedLogins(reviews, head);
+  return { outcome: approved.length === 0 ? 'approval' : 'approved', changed, approved };
+}
+
+export const APPROVAL_HINT = [
+  'Build-surface change needs an approving review from a maintainer on this exact head.',
+  'Submitting an approval does not re-run this check automatically; '
+    + 're-run "Trusted Studio publication validation" for this branch to re-evaluate.',
+];
+
 const invokedDirectly = () => {
   try {
     return process.argv[1] ? realpathSync(process.argv[1]) === import.meta.filename : false;
@@ -94,41 +119,39 @@ const option = (args, name) => {
 
 if (invokedDirectly()) {
   const [command, ...args] = process.argv.slice(2);
-  const head = option(args, '--head');
-  try {
-    if (command === 'changed-paths') {
-      const files = readJson(option(args, '--files'));
-      const pull = readJson(option(args, '--pull'));
-      for (const path of changedPaths(files, pull, head)) console.log(path);
-    } else if (command === 'approvals') {
-      const approved = approvedLogins(readJson(option(args, '--reviews')), head);
-      if (approved.length === 0) {
-        console.error('Build-surface change needs an approving review from a maintainer on this exact head.');
-        console.error(
-          'Submitting an approval does not re-run this check automatically; '
-            + 're-run "Trusted Studio publication validation" for this branch to re-evaluate.',
-        );
-        process.exitCode = 1;
+  if (command !== 'gate') {
+    console.error('usage: publication-approval.mjs gate --files F --pull P --reviews R --head SHA '
+      + '--author-type T --author-login LOGIN');
+    process.exitCode = 2;
+  } else {
+    try {
+      const result = gate({
+        files: readJson(option(args, '--files')),
+        pull: readJson(option(args, '--pull')),
+        reviews: readJson(option(args, '--reviews')),
+        head: option(args, '--head'),
+        authorType: option(args, '--author-type'),
+        authorLogin: option(args, '--author-login'),
+      });
+      if (result.outcome === 'unchanged') {
+        console.log(UNCHANGED);
       } else {
-        console.log(approved.join('\n'));
+        console.log(`Build surface changed (${result.outcome}):`);
+        for (const path of result.changed) console.log(path);
+        if (result.outcome === 'exempt') {
+          console.log(`Artifact-only publication by ${option(args, '--author-login')}: a maintainer approval is not required.`);
+        } else if (result.outcome === 'approved') {
+          console.log(`Approved by ${result.approved.join(', ')} on this head.`);
+        } else {
+          for (const line of APPROVAL_HINT) console.error(line);
+          process.exitCode = 1;
+        }
       }
-    } else if (command === 'bot-artifact') {
-      const paths = readFileSync(option(args, '--paths'), 'utf8').split('\n').map(line => line.trim()).filter(Boolean);
-      const authorType = option(args, '--author-type');
-      const authorLogin = option(args, '--author-login');
-      if (botArtifactOnlyPublication(paths, authorType, authorLogin)) {
-        console.log(`Artifact-only publication by ${authorLogin}: a maintainer approval is not required.`);
-      } else {
-        process.exitCode = 1;
-      }
-    } else {
-      console.error('usage: publication-approval.mjs changed-paths --files F --pull P --head SHA');
-      console.error('       publication-approval.mjs approvals --reviews R --head SHA');
-      console.error('       publication-approval.mjs bot-artifact --paths P --author-type Bot|User --author-login LOGIN');
-      process.exitCode = 2;
+    } catch (error) {
+      // The listing or the head is not trustworthy yet: tell the caller to retry,
+      // so the retry decision is not left to the shell.
+      console.error(error.message);
+      process.exitCode = 3;
     }
-  } catch (error) {
-    console.error(error.message);
-    process.exitCode = 1;
   }
 }

@@ -61,33 +61,83 @@ test('changed paths include both sides of a rename and require a complete list',
   assert.throws(() => changedPaths(files, { changed_files: 2 }, HEAD), /changed_files or head\.sha/);
 });
 
-test('the CLI fails closed on approvals and reports the parsed paths', async t => {
-  const directory = await mkdtemp(join(tmpdir(), 'publication-approval-'));
+test('the gate decides every outcome and tells the caller when to retry', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'publication-gate-cli-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const cli = fileURLToPath(new URL('../scripts/publication-approval.mjs', import.meta.url));
-  const reviewsFile = join(directory, 'reviews.json');
-  const filesFile = join(directory, 'files.json');
-  const pullFile = join(directory, 'pull.json');
-  await writeFile(filesFile, JSON.stringify([[{ filename: 'scripts/x.mjs' }]]));
-  await writeFile(pullFile, JSON.stringify({ changed_files: 1, head: { sha: HEAD } }));
+  const files = join(directory, 'files.json');
+  const pull = join(directory, 'pull.json');
+  const reviews = join(directory, 'reviews.json');
+  await writeFile(reviews, JSON.stringify([review('mornyx', 'APPROVED')]));
+  const run = async (changeFiles, { authorType = 'User', authorLogin = 'srstack', head = HEAD, pullHead = HEAD, reviewsPath = reviews } = {}) => {
+    await writeFile(files, JSON.stringify([changeFiles.map(filename => ({ filename }))]));
+    await writeFile(pull, JSON.stringify({ changed_files: changeFiles.length, head: { sha: pullHead } }));
+    return spawnSync(process.execPath, [cli, 'gate', '--files', files, '--pull', pull, '--reviews', reviewsPath,
+      '--head', head, '--author-type', authorType, '--author-login', authorLogin], { encoding: 'utf8' });
+  };
 
-  await writeFile(reviewsFile, JSON.stringify([review('mornyx', 'APPROVED')]));
-  const approved = spawnSync(process.execPath, [cli, 'approvals', '--reviews', reviewsFile, '--head', HEAD], { encoding: 'utf8' });
+  // Nothing privileged changed: pass without looking at reviews.
+  const unchanged = await run(['site/index.html']);
+  assert.equal(unchanged.status, 0);
+  assert.equal(unchanged.stdout.trim(), 'Build surface unchanged.');
+
+  // Privileged change with an approval on this head: pass.
+  const approved = await run(['scripts/build-surface.mjs']);
   assert.equal(approved.status, 0);
-  assert.equal(approved.stdout.trim(), 'mornyx');
+  assert.match(approved.stdout, /Approved by mornyx/);
 
-  await writeFile(reviewsFile, JSON.stringify([review('mornyx', 'CHANGES_REQUESTED')]));
-  const rejected = spawnSync(process.execPath, [cli, 'approvals', '--reviews', reviewsFile, '--head', HEAD], { encoding: 'utf8' });
+  // Privileged change without an approval: fail with the recovery hint.
+  const none = join(directory, 'empty.json');
+  await writeFile(none, '[]');
+  const rejected = spawnSync(process.execPath, [cli, 'gate', '--files', files, '--pull', pull,
+    '--reviews', none, '--head', HEAD,
+    '--author-type', 'User', '--author-login', 'srstack'], { encoding: 'utf8' });
   assert.equal(rejected.status, 1);
   assert.match(rejected.stderr, /needs an approving review/);
-  // The check turns red on approval alone, so the failure has to say how to recover,
-  // and it has to read as standing behaviour rather than as a note about git history.
   assert.match(rejected.stderr, /does not re-run this check automatically/);
-  assert.match(rejected.stderr, /re-run "Trusted Studio publication validation"/);
 
-  const paths = spawnSync(process.execPath, [cli, 'changed-paths', '--files', filesFile, '--pull', pullFile, '--head', HEAD], { encoding: 'utf8' });
-  assert.equal(paths.status, 0);
-  assert.equal(paths.stdout.trim(), 'scripts/x.mjs');
+  // Publisher app shipping only the artifact: pass without an approval.
+  const exempt = await run(['vendor/studio/index.html', 'vendor/studio-build.json'],
+    { authorType: 'Bot', authorLogin: 'mem9-studio-publisher[bot]' });
+  assert.equal(exempt.status, 0);
+  assert.match(exempt.stdout, /maintainer approval is not required/);
+
+  // The same files from any other app, or mixed with code: approval required.
+  const otherApp = await run(['vendor/studio/index.html'], { authorType: 'Bot', authorLogin: 'dependabot[bot]', reviewsPath: none });
+  assert.equal(otherApp.status, 1);
+  const mixed = await run(['vendor/studio/index.html', 'scripts/build-surface.mjs'],
+    { authorType: 'Bot', authorLogin: 'mem9-studio-publisher[bot]', reviewsPath: none });
+  assert.equal(mixed.status, 1);
+
+  // A listing that does not match the head asked for: retry (3), never a verdict.
+  const stale = await run(['scripts/build-surface.mjs'], { pullHead: 'b'.repeat(40) });
+  assert.equal(stale.status, 3);
+  assert.match(stale.stderr, /retry the run/);
+
+  // An incomplete listing is also retryable, not a pass.
+  await writeFile(files, JSON.stringify([[{ filename: 'scripts/build-surface.mjs' }]]));
+  await writeFile(pull, JSON.stringify({ changed_files: 2, head: { sha: HEAD } }));
+  const truncated = spawnSync(process.execPath, [cli, 'gate', '--files', files, '--pull', pull, '--reviews', reviews,
+    '--head', HEAD, '--author-type', 'User', '--author-login', 'srstack'], { encoding: 'utf8' });
+  assert.equal(truncated.status, 3);
+  assert.match(truncated.stderr, /Cannot verify every changed file/);
+
+  // Anything but the gate subcommand is a usage error.
+  const usage = spawnSync(process.execPath, [cli, 'approvals', '--head', HEAD], { encoding: 'utf8' });
+  assert.equal(usage.status, 2);
+  assert.match(usage.stderr, /gate --files/);
+});
+
+test('the workflow keeps only fetching and one gate invocation', () => {
+  const workflow = readFileSync(new URL('../.github/workflows/studio-publication.yml', import.meta.url), 'utf8');
+  assert.match(workflow, /PR_AUTHOR_TYPE: \$\{\{ github\.event\.pull_request\.user\.type \}\}/);
+  assert.match(workflow, /PR_AUTHOR_LOGIN: \$\{\{ github\.event\.pull_request\.user\.login \}\}/);
+  assert.match(workflow, /publication-approval\.mjs gate/);
+  assert.match(workflow, /--author-type "\$PR_AUTHOR_TYPE" --author-login "\$PR_AUTHOR_LOGIN"/);
+  // The decision must not be re-implemented in shell any more.
+  assert.doesNotMatch(workflow, /build-surface\.mjs --stdin/);
+  assert.doesNotMatch(workflow, /bot-artifact/);
+  assert.doesNotMatch(workflow, /case "\$changed" in/);
 });
 
 test('only the publisher app publishing nothing but the artifact skips the approval requirement', () => {
@@ -110,36 +160,4 @@ test('only the publisher app publishing nothing but the artifact skips the appro
   assert.equal(botArtifactOnlyPublication(['vendor/studio-evil/index.html'], 'Bot', 'mem9-studio-publisher[bot]'), false);
   assert.equal(botArtifactOnlyPublication(['vendor/studio'], 'Bot', 'mem9-studio-publisher[bot]'), false);
   assert.equal(botArtifactOnlyPublication([], 'Bot', 'mem9-studio-publisher[bot]'), false);
-});
-
-test('the bot-artifact CLI fails closed and the workflow passes the author type', async t => {
-  const directory = await mkdtemp(join(tmpdir(), 'publication-bot-'));
-  t.after(() => rm(directory, { recursive: true, force: true }));
-  const cli = fileURLToPath(new URL('../scripts/publication-approval.mjs', import.meta.url));
-  const pathsFile = join(directory, 'changed-paths.txt');
-
-  await writeFile(pathsFile, 'vendor/studio/index.html\nvendor/studio-build.json\n');
-  const exempt = spawnSync(process.execPath, [cli, 'bot-artifact', '--paths', pathsFile, '--author-type', 'Bot', '--author-login', 'mem9-studio-publisher[bot]'], { encoding: 'utf8' });
-  assert.equal(exempt.status, 0);
-  assert.match(exempt.stdout, /approval is not required/);
-
-  const otherApp = spawnSync(process.execPath, [cli, 'bot-artifact', '--paths', pathsFile, '--author-type', 'Bot', '--author-login', 'dependabot[bot]'], { encoding: 'utf8' });
-  assert.equal(otherApp.status, 1);
-
-  const human = spawnSync(process.execPath, [cli, 'bot-artifact', '--paths', pathsFile, '--author-type', 'User', '--author-login', 'srstack'], { encoding: 'utf8' });
-  assert.equal(human.status, 1);
-
-  await writeFile(pathsFile, 'vendor/studio/index.html\nscripts/build-surface.mjs\n');
-  const mixed = spawnSync(process.execPath, [cli, 'bot-artifact', '--paths', pathsFile, '--author-type', 'Bot', '--author-login', 'mem9-studio-publisher[bot]'], { encoding: 'utf8' });
-  assert.equal(mixed.status, 1);
-
-  // The exemption is only safe because the workflow reads the author type from
-  // the pull request itself: a branch name or the sender would be forgeable.
-  const workflow = readFileSync(new URL('../.github/workflows/studio-publication.yml', import.meta.url), 'utf8');
-  assert.match(workflow, /PR_AUTHOR_TYPE: \$\{\{ github\.event\.pull_request\.user\.type \}\}/);
-  assert.match(workflow, /PR_AUTHOR_LOGIN: \$\{\{ github\.event\.pull_request\.user\.login \}\}/);
-  assert.match(workflow, /--author-type "\$PR_AUTHOR_TYPE" --author-login "\$PR_AUTHOR_LOGIN"/);
-  // One identity story: the artifact-only validation must not fall back to "any Bot".
-  assert.match(workflow, /ARTIFACT_ONLY: \$\{\{ github\.event\.pull_request\.user\.login == 'mem9-studio-publisher\[bot\]'/);
-  assert.doesNotMatch(workflow, /ARTIFACT_ONLY: \$\{\{ github\.event\.pull_request\.user\.type == 'Bot'/);
 });

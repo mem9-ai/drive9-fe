@@ -57,57 +57,36 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           # Author identity as GitHub reports it, never the sender and never a
           # branch name. `user.type` alone is too coarse — every installed GitHub
-          # App authors as `Bot` — so the exemption below also pins the publisher
-          # app's login, and still requires every changed path to be the artifact.
+          # App authors as `Bot` — so the exemption also pins the publisher app's
+          # login, and still requires every changed path to be the artifact.
           PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
           PR_AUTHOR_LOGIN: ${{ github.event.pull_request.user.login }}
         run: |
-          # Netlify executes this surface from the merged revision, so a change
-          # to it changes code execution in the deploy environment. The decision
-          # logic lives in scripts/publication-approval.mjs and
-          # scripts/build-surface.mjs so it is covered by tests; the dispatch in
-          # this step is the one part tests cannot reach (tracked in #148).
-          verified=0
+          # Netlify executes this surface from the merged revision, so a change to
+          # it changes code execution in the deploy environment. Every decision
+          # lives in scripts/publication-approval.mjs (`gate`): this step only
+          # fetches GitHub's objects, retries a listing that is not trustworthy
+          # yet, and forwards the exit status. 0 = pass, 1 = approval required,
+          # 3 = retry, anything else = fail closed.
+          status=1
           for attempt in 1 2; do
             gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" > "$RUNNER_TEMP/files.json"
             gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > "$RUNNER_TEMP/pull.json"
-            if node scripts/publication-approval.mjs changed-paths \
-              --files "$RUNNER_TEMP/files.json" --pull "$RUNNER_TEMP/pull.json" --head "$HEAD_SHA" \
-              > "$RUNNER_TEMP/changed-paths.txt"; then
-              verified=1
-              break
+            gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews?per_page=100" > "$RUNNER_TEMP/reviews.json"
+            set +e
+            node scripts/publication-approval.mjs gate \
+              --files "$RUNNER_TEMP/files.json" --pull "$RUNNER_TEMP/pull.json" \
+              --reviews "$RUNNER_TEMP/reviews.json" --head "$HEAD_SHA" \
+              --author-type "$PR_AUTHOR_TYPE" --author-login "$PR_AUTHOR_LOGIN"
+            status=$?
+            set -e
+            if [ "$status" -ne 3 ]; then
+              exit "$status"
             fi
             echo "Changed-file listing not verifiable yet (attempt $attempt); retrying." >&2
             sleep 3
           done
-          if [ "$verified" != 1 ]; then
-            echo "Refusing to evaluate the build surface: the changed-file list is incomplete or stale." >&2
-            exit 1
-          fi
-          changed=$(node scripts/build-surface.mjs --stdin < "$RUNNER_TEMP/changed-paths.txt")
-          case "$changed" in
-            "Build surface unchanged.")
-              echo "$changed"
-              exit 0
-              ;;
-            "")
-              echo "Build-surface evaluation produced no output; failing closed." >&2
-              exit 1
-              ;;
-          esac
-          echo "Build surface changed:"
-          echo "$changed"
-          # The Console publisher app ships artifact-only releases; those keep
-          # merging without a human, exactly as they did before this gate
-          # covered them. Anything else needs a maintainer approval.
-          if node scripts/publication-approval.mjs bot-artifact \
-            --paths "$RUNNER_TEMP/changed-paths.txt" \
-            --author-type "$PR_AUTHOR_TYPE" --author-login "$PR_AUTHOR_LOGIN"; then
-            exit 0
-          fi
-          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews?per_page=100" > "$RUNNER_TEMP/reviews.json"
-          node scripts/publication-approval.mjs approvals \
-            --reviews "$RUNNER_TEMP/reviews.json" --head "$HEAD_SHA"
+          exit "$status"
       - name: Validate candidate data with trusted code
         id: validate
         env:
