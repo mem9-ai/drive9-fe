@@ -33,6 +33,22 @@ export function approvedLogins(reviews, head) {
     .sort();
 }
 
+const artifactPath = path => path.startsWith('vendor/studio/') || path === 'vendor/studio-build.json';
+
+// The Console publisher app opens artifact-only pull requests and merges them
+// itself (24 of them in the week before this gate was written, every one merged
+// by the app with no review). Requiring a maintainer to approve a minified
+// bundle would not add a real control, and it would stop that pipeline: the
+// honest control for those releases is the artifact path allowlist, the manifest
+// checksum check and the credential scan that still run. So a bot-authored pull
+// request may skip the approval requirement only when every path it touches is
+// the artifact itself, which makes it impossible to smuggle code in with a
+// release. `authorType` comes from GitHub's `pull_request.user.type`; anything
+// other than the exact string `Bot` needs an approval.
+export function botArtifactOnlyPublication(paths, authorType) {
+  return authorType === 'Bot' && paths.length > 0 && paths.every(path => artifactPath(path));
+}
+
 // Every path the candidate touched, both sides of a rename. The listing is
 // compared with the pull request's own count because the files endpoint caps at
 // 3000 entries and silently truncates: an incomplete list must not be trusted.
@@ -88,9 +104,18 @@ if (invokedDirectly()) {
       } else {
         console.log(approved.join('\n'));
       }
+    } else if (command === 'bot-artifact') {
+      const paths = readFileSync(option(args, '--paths'), 'utf8').split('\n').map(line => line.trim()).filter(Boolean);
+      const authorType = option(args, '--author-type');
+      if (botArtifactOnlyPublication(paths, authorType)) {
+        console.log(`Artifact-only publication by ${authorType}: a maintainer approval is not required.`);
+      } else {
+        process.exitCode = 1;
+      }
     } else {
       console.error('usage: publication-approval.mjs changed-paths --files F --pull P --head SHA');
       console.error('       publication-approval.mjs approvals --reviews R --head SHA');
+      console.error('       publication-approval.mjs bot-artifact --paths P --author-type Bot|User');
       process.exitCode = 2;
     }
   } catch (error) {

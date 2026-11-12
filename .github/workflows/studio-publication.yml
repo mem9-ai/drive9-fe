@@ -55,6 +55,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          # Author type, never the sender and never a branch name: only the
+          # Console publisher app can be `Bot`, and the exemption below still
+          # requires every changed path to be the artifact.
+          PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
         run: |
           # Netlify executes this surface from the merged revision, so a change
           # to it changes code execution in the deploy environment. The decision
@@ -90,6 +94,13 @@ jobs:
           esac
           echo "Build surface changed:"
           echo "$changed"
+          # The Console publisher app ships artifact-only releases; those keep
+          # merging without a human, exactly as they did before this gate
+          # covered them. Anything else needs a maintainer approval.
+          if node scripts/publication-approval.mjs bot-artifact \
+            --paths "$RUNNER_TEMP/changed-paths.txt" --author-type "$PR_AUTHOR_TYPE"; then
+            exit 0
+          fi
           gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews?per_page=100" > "$RUNNER_TEMP/reviews.json"
           node scripts/publication-approval.mjs approvals \
             --reviews "$RUNNER_TEMP/reviews.json" --head "$HEAD_SHA"
