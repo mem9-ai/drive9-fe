@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { validateStudioPublication } from '../scripts/validate-studio-publication.mjs';
 import { studioHashes } from '../scripts/studio-artifact.mjs';
+import { signManifest } from '../scripts/studio-signature.mjs';
 
 async function fixture(t) {
   const directory = await mkdtemp(join(tmpdir(), 'studio-pr-gate-'));
@@ -13,6 +14,10 @@ async function fixture(t) {
   const git = (...args) => execFileSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', ...args], { cwd: directory, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
   git('init');
   await cp(new URL('../vendor', import.meta.url), join(directory, 'vendor'), { recursive: true });
+  // Rollout independence: once the publisher signs, the checkout this fixture
+  // copies already carries vendor/studio-build.json.sig. Every fixture starts
+  // from a known-unsigned tree; the tests that need a signature write their own.
+  await rm(join(directory, 'vendor/studio-build.json.sig'), { force: true });
   await mkdir(join(directory, '.github/workflows'), { recursive: true });
   await mkdir(join(directory, 'scripts'));
   for (const path of ['.github/workflows/studio-publication.yml', 'scripts/validate-studio-publication.mjs']) {
@@ -34,8 +39,11 @@ async function fixture(t) {
     await writeFile(file, paths.join('\n'));
     return file;
   };
-  const gate = async (only = true) =>
-    validateStudioPublication(directory, git('rev-parse', 'HEAD'), only, await changedList());
+  // `''` is an explicit "no pinned key": the default must not be `undefined`,
+  // which would fall back to the production pin and make the suite pass only
+  // while that pin is empty. Tests that exercise verification pass a key.
+  const gate = async (only = true, publicKey = '') =>
+    validateStudioPublication(directory, git('rev-parse', 'HEAD'), only, await changedList(), publicKey);
   return { directory, git, commit, baseline, gate, changedList };
 }
 
@@ -150,4 +158,48 @@ test('the artifact restriction is author-independent', async t => {
   commit();
   // A human PR that publishes an artifact may not smuggle in other changes.
   await assert.rejects(gate(false), /only Console/);
+});
+
+test('a pinned publisher key makes the manifest signature mandatory (#147)', async t => {
+  const { generateKeyPairSync } = await import('node:crypto');
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const pinned = publicKey.export({ type: 'spki', format: 'pem' });
+  const { directory, commit, git, gate } = await fixture(t);
+  const manifestPath = join(directory, 'vendor/studio-build.json');
+  const signaturePath = join(directory, 'vendor/studio-build.json.sig');
+
+  // No signature at all: refused once a key is pinned, even though the artifact
+  // change itself would otherwise pass.
+  const consoleDirectory = join(directory, 'vendor/studio');
+  const index = join(consoleDirectory, 'index.html');
+  await writeFile(index, `${await readFile(index, 'utf8')}<!-- republished -->`);
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  manifest.files = await studioHashes(consoleDirectory);
+  await writeFile(manifestPath, JSON.stringify(manifest));
+  commit();
+  await assert.rejects(gate(true, pinned), /signature is missing/);
+
+  // A signature from the pinned key: accepted.
+  const manifestBytes = await readFile(manifestPath);
+  await writeFile(signaturePath, signManifest(manifestBytes, privateKey));
+  commit();
+  await gate(true, pinned);
+
+  // A signature over different bytes: refused.
+  await writeFile(signaturePath, signManifest(Buffer.from('{"files":{}}'), privateKey));
+  commit();
+  await assert.rejects(gate(true, pinned), /does not match the pinned publisher key/);
+
+  // A signature from a different key: refused.
+  const other = generateKeyPairSync('ed25519');
+  await writeFile(signaturePath, signManifest(manifestBytes, other.privateKey));
+  commit();
+  await assert.rejects(gate(true, pinned), /does not match the pinned publisher key/);
+
+  // Without a pinned key the signature is not consulted, so this change cannot
+  // break a release before the pipeline signs (#147 provisioning step).
+  await writeFile(signaturePath, signManifest(Buffer.from('{"files":{}}'), privateKey));
+  commit();
+  await gate(true);
+  git('reset', '--hard', 'HEAD');
 });
