@@ -21,7 +21,9 @@
 /pnpm-lock.yaml             @qiffang @srstack
 /.npmrc                     @qiffang @srstack
 /.yarnrc                    @qiffang @srstack
+/.yarnrc.yml                 @qiffang @srstack
 /bun.lockb                  @qiffang @srstack
+/bun.lock                    @qiffang @srstack
 /deno.json                  @qiffang @srstack
 /deno.lock                  @qiffang @srstack
 /composer.json              @qiffang @srstack
@@ -30,11 +32,14 @@
 /Gemfile.lock               @qiffang @srstack
 /requirements.txt           @qiffang @srstack
 /pyproject.toml             @qiffang @srstack
+/poetry.lock                 @qiffang @srstack
 /site/yarn.lock             @qiffang @srstack
 /site/pnpm-lock.yaml        @qiffang @srstack
 /site/.npmrc                @qiffang @srstack
 /site/.yarnrc               @qiffang @srstack
+/site/.yarnrc.yml            @qiffang @srstack
 /site/bun.lockb             @qiffang @srstack
+/site/bun.lock               @qiffang @srstack
 /site/deno.json             @qiffang @srstack
 /site/deno.lock             @qiffang @srstack
 /site/composer.json         @qiffang @srstack
@@ -43,6 +48,7 @@
 /site/Gemfile.lock          @qiffang @srstack
 /site/requirements.txt      @qiffang @srstack
 /site/pyproject.toml        @qiffang @srstack
+/site/poetry.lock            @qiffang @srstack
 /scripts/                   @qiffang @srstack
 /vendor/studio/             @qiffang @srstack
 /vendor/studio-build.json   @qiffang @srstack
