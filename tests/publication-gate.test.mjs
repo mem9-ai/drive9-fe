@@ -14,6 +14,10 @@ async function fixture(t) {
   const git = (...args) => execFileSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', ...args], { cwd: directory, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
   git('init');
   await cp(new URL('../vendor', import.meta.url), join(directory, 'vendor'), { recursive: true });
+  // Rollout independence: once the publisher signs, the checkout this fixture
+  // copies already carries vendor/studio-build.json.sig. Every fixture starts
+  // from a known-unsigned tree; the tests that need a signature write their own.
+  await rm(join(directory, 'vendor/studio-build.json.sig'), { force: true });
   await mkdir(join(directory, '.github/workflows'), { recursive: true });
   await mkdir(join(directory, 'scripts'));
   for (const path of ['.github/workflows/studio-publication.yml', 'scripts/validate-studio-publication.mjs']) {
@@ -35,7 +39,10 @@ async function fixture(t) {
     await writeFile(file, paths.join('\n'));
     return file;
   };
-  const gate = async (only = true, publicKey) =>
+  // `''` is an explicit "no pinned key": the default must not be `undefined`,
+  // which would fall back to the production pin and make the suite pass only
+  // while that pin is empty. Tests that exercise verification pass a key.
+  const gate = async (only = true, publicKey = '') =>
     validateStudioPublication(directory, git('rev-parse', 'HEAD'), only, await changedList(), publicKey);
   return { directory, git, commit, baseline, gate, changedList };
 }
