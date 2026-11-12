@@ -3,7 +3,14 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { isConsoleArtifactPath, PRIVILEGED_EXAMPLES, privilegedBuildSurface, UNCHANGED } from '../scripts/build-surface.mjs';
+import {
+  CONSOLE_ARTIFACT_DIRECTORY,
+  CONSOLE_MANIFEST,
+  isConsoleArtifactPath,
+  PRIVILEGED_EXAMPLES,
+  privilegedBuildSurface,
+  UNCHANGED,
+} from '../scripts/build-surface.mjs';
 
 test('the privileged surface is exactly what the project ships or executes', () => {
   for (const path of PRIVILEGED_EXAMPLES) {
@@ -59,14 +66,28 @@ test('CODEOWNERS covers the whole enforced surface', () => {
 });
 
 test('every console-artifact path is also a privileged build path', () => {
-  // The exemption waves a publisher PR through before the surface check runs, so
-  // a path accepted here but missing from the surface would be published with
-  // neither a maintainer approval nor artifact validation.
-  for (const path of ['vendor/studio/index.html', 'vendor/studio/assets/app.js', 'vendor/studio/skills/tidb-agent-workspace/SKILL.md', 'vendor/studio-build.json']) {
-    assert.ok(isConsoleArtifactPath(path), path);
+  // The surface is evaluated before the exemption, so a path the exemption accepts
+  // but the surface does not would read "Build surface unchanged." — green with no
+  // approval and without the validator ever walking that path. The corpus derives
+  // from the shared constants, so admitting a new artifact widens it in one edit.
+  const positives = [
+    `${CONSOLE_ARTIFACT_DIRECTORY}index.html`,
+    `${CONSOLE_ARTIFACT_DIRECTORY}assets/app.js`,
+    `${CONSOLE_ARTIFACT_DIRECTORY}discover/index.html`,
+    CONSOLE_MANIFEST,
+  ];
+  for (const path of positives) {
+    assert.ok(isConsoleArtifactPath(path), `${path} must be the artifact`);
     assert.ok(privilegedBuildSurface(path), `${path} must also be in the privileged surface`);
   }
-  // ...and the artifact set stays inside the vendor tree.
-  assert.equal(isConsoleArtifactPath('vendor/studio-config.json'), false);
-  assert.equal(isConsoleArtifactPath('site/install.sh'), false);
+  const directory = CONSOLE_ARTIFACT_DIRECTORY.replace(/\/$/, '');
+  for (const path of [
+    `${directory}-extra.json`,
+    `${directory}-evil/assets/app.js`,
+    directory,
+    `site${CONSOLE_ARTIFACT_DIRECTORY}x.js`,
+    'site/install.sh',
+  ]) {
+    assert.equal(isConsoleArtifactPath(path), false, path);
+  }
 });

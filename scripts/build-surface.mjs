@@ -36,14 +36,16 @@ const DEPENDENCY_FILES = [
 ];
 
 // The Console artifact lives under one directory plus one provenance manifest.
-// These two constants are the only place those strings are written: the approval
-// exemption, the trusted validator and the surface below all derive from them, so
-// widening one of the three can no longer leave the others behind. Widening an
-// artifact path on its own would be the quiet failure mode — a publisher pull
-// request touching only that path would read "Build surface unchanged." and be
-// waved through before the exemption is even consulted.
-const CONSOLE_ARTIFACT_DIRECTORY = 'vendor/studio/';
-const CONSOLE_MANIFEST = 'vendor/studio-build.json';
+// Every consumer derives from these two constants — the exemption predicate, the
+// privileged surface below, the trusted validator's extraction scope, and the
+// tests' corpus of positives and lookalike negatives — so widening the artifact
+// widens all of them in one edit. The quiet failure mode this prevents: a
+// publisher pull request touching only a newly admitted path would read
+// "Build surface unchanged." (the surface is evaluated before the exemption), so
+// the check would go green without any approval and without the validator ever
+// walking that path.
+export const CONSOLE_ARTIFACT_DIRECTORY = 'vendor/studio/';
+export const CONSOLE_MANIFEST = 'vendor/studio-build.json';
 
 // What the site ships as code rather than as text: the installers (run on the
 // visitor's machine) and the Console bundle with its provenance manifest (served
