@@ -7,6 +7,10 @@
 /.github/workflows/         @qiffang @srstack
 /netlify.toml               @qiffang @srstack
 /site/netlify.toml          @qiffang @srstack
+/netlify/functions/         @qiffang @srstack
+/netlify/edge-functions/    @qiffang @srstack
+/site/netlify/functions/    @qiffang @srstack
+/site/netlify/edge-functions/  @qiffang @srstack
 /site/install.sh            @qiffang @srstack
 /site/install.ps1           @qiffang @srstack
 /site/package.json          @qiffang @srstack

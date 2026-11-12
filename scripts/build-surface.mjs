@@ -43,6 +43,28 @@ const PUBLISHED_CODE = [
 
 // Precomputed once: this predicate runs over every changed path.
 const SITE_DEPENDENCY_FILES = DEPENDENCY_FILES.map(name => `site/${name}`);
+
+// Netlify deploys functions from the base directory without any configuration:
+// the defaults are `netlify/functions` and `netlify/edge-functions` resolved
+// against the base directory, which is `site` here. A pull request that drops a
+// file under either path gets code running in the deployed site, with the site's
+// environment, without touching any other privileged path — so those
+// directories are part of the surface. The repository-root variants are listed
+// too: they are the same defaults if the base directory ever becomes the root.
+const FUNCTION_DIRECTORIES = [
+  'netlify/functions',
+  'netlify/edge-functions',
+  'site/netlify/functions',
+  'site/netlify/edge-functions',
+];
+
+const DIRECTORY_PREFIXES = [
+  'scripts/',
+  '.github/workflows/',
+  'vendor/studio/',
+  ...FUNCTION_DIRECTORIES.map(directory => `${directory}/`),
+];
+
 const EXACT_PATHS = new Set([
   'netlify.toml',
   'site/netlify.toml',
@@ -52,10 +74,7 @@ const EXACT_PATHS = new Set([
 ]);
 
 export const privilegedBuildSurface = path =>
-  EXACT_PATHS.has(path) ||
-  path.startsWith('scripts/') ||
-  path.startsWith('.github/workflows/') ||
-  path.startsWith('vendor/studio/');
+  EXACT_PATHS.has(path) || DIRECTORY_PREFIXES.some(prefix => path.startsWith(prefix));
 
 export const PRIVILEGED_EXAMPLES = [
   'netlify.toml',
@@ -68,6 +87,10 @@ export const PRIVILEGED_EXAMPLES = [
   'vendor/studio/index.html',
   'vendor/studio/assets/app.js',
   'vendor/studio-build.json',
+  'netlify/functions/hello.mjs',
+  'netlify/edge-functions/hello.ts',
+  'site/netlify/functions/hello.mjs',
+  'site/netlify/edge-functions/hello.ts',
   'package.json',
   'package-lock.json',
   'yarn.lock',
