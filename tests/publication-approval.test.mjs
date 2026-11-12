@@ -7,7 +7,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { approvedLogins, botArtifactOnlyPublication, changedPaths } from '../scripts/publication-approval.mjs';
+import { approvedLogins, botArtifactOnlyPublication, changedPaths, gate } from '../scripts/publication-approval.mjs';
 
 const HEAD = 'a'.repeat(40);
 const review = (login, state, commit = HEAD, at = '2026-11-10T10:00:00Z', association = 'MEMBER') => ({
@@ -40,6 +40,24 @@ test('approve then request changes revokes the approval', () => {
     review('mornyx', 'CHANGES_REQUESTED', HEAD, '2026-11-10T11:00:00Z'),
   ];
   assert.deepEqual(approvedLogins(reviews, HEAD), []);
+});
+
+test('gate reports an untrustworthy listing as an outcome instead of throwing', () => {
+  const files = [[{ filename: 'scripts/build-surface.mjs' }]];
+  // A head mismatch and an incomplete listing are expected conditions the caller
+  // has to retry on, so they are values, not exceptions.
+  const stale = gate({ files, pull: { changed_files: 1, head: { sha: 'b'.repeat(40) } }, reviews: [],
+    head: HEAD, authorType: 'User', authorLogin: 'srstack' });
+  assert.equal(stale.outcome, 'unverifiable');
+  assert.match(stale.reason, /retry the run/);
+  const truncated = gate({ files, pull: { changed_files: 2, head: { sha: HEAD } }, reviews: [],
+    head: HEAD, authorType: 'User', authorLogin: 'srstack' });
+  assert.equal(truncated.outcome, 'unverifiable');
+  assert.match(truncated.reason, /Cannot verify every changed file/);
+  // Malformed metadata is the same class: the caller retries rather than guessing.
+  const malformed = gate({ files: [], pull: {}, reviews: [], head: HEAD, authorType: 'User', authorLogin: 'srstack' });
+  assert.equal(malformed.outcome, 'unverifiable');
+  assert.match(malformed.reason, /changed_files or head\.sha/);
 });
 
 test('paginated page arrays and null users are handled', () => {

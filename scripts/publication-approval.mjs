@@ -86,12 +86,19 @@ export function changedPaths(files, pull, head) {
 //   'approved'    — a maintainer approved this exact head, pass
 //   'approval'    — a privileged change without an approval, fail
 //   'unverifiable'— the file list cannot be trusted yet, retry
-// Any other shape is a bug in this module, not in the workflow.
+// A stale head, a truncated listing or malformed pull metadata is an expected
+// condition, not an exception: `gate` returns `unverifiable` with the reason, so
+// a programmatic caller never has to catch to learn "retry".
 // `paths` is the full changed-file list, not just the privileged subset: the
 // validation step consumes it to prove an artifact publication changed nothing
 // else, and it must not be reconstructed from a second definition of "changed".
 export function gate({ files, pull, reviews, head, authorType, authorLogin }) {
-  const paths = changedPaths(files, pull, head);
+  let paths;
+  try {
+    paths = changedPaths(files, pull, head);
+  } catch (error) {
+    return { outcome: 'unverifiable', reason: error.message, paths: [], changed: [], approved: [] };
+  }
   const changed = changedSurface(paths);
   if (changed.length === 0) return { outcome: 'unchanged', paths, changed, approved: [] };
   if (botArtifactOnlyPublication(paths, authorType, authorLogin)) {
@@ -136,29 +143,34 @@ if (invokedDirectly()) {
         authorType: option(args, '--author-type'),
         authorLogin: option(args, '--author-login'),
       });
-      const pathsOut = option(args, '--paths-out');
-      if (pathsOut) {
-        // Written before the verdict matters: the validation step needs the same
-        // changed-file list the gate just verified, including the pass outcomes.
-        writeFileSync(pathsOut, `${result.paths.join('\n')}\n`);
-      }
-      if (result.outcome === 'unchanged') {
-        console.log(UNCHANGED);
+      if (result.outcome === 'unverifiable') {
+        // Expected, retryable: the caller loops on exit 3.
+        console.error(result.reason);
+        process.exitCode = 3;
       } else {
-        console.log(`Build surface changed (${result.outcome}):`);
-        for (const path of result.changed) console.log(path);
-        if (result.outcome === 'exempt') {
-          console.log(`Artifact-only publication by ${option(args, '--author-login')}: a maintainer approval is not required.`);
-        } else if (result.outcome === 'approved') {
-          console.log(`Approved by ${result.approved.join(', ')} on this head.`);
+        const pathsOut = option(args, '--paths-out');
+        if (pathsOut) {
+          // Written for every passing outcome: the validation step needs the same
+          // changed-file list the gate just verified, not a reconstructed one.
+          writeFileSync(pathsOut, `${result.paths.join('\n')}\n`);
+        }
+        if (result.outcome === 'unchanged') {
+          console.log(UNCHANGED);
         } else {
-          for (const line of APPROVAL_HINT) console.error(line);
-          process.exitCode = 1;
+          console.log(`Build surface changed (${result.outcome}):`);
+          for (const path of result.changed) console.log(path);
+          if (result.outcome === 'exempt') {
+            console.log(`Artifact-only publication by ${option(args, '--author-login')}: a maintainer approval is not required.`);
+          } else if (result.outcome === 'approved') {
+            console.log(`Approved by ${result.approved.join(', ')} on this head.`);
+          } else {
+            for (const line of APPROVAL_HINT) console.error(line);
+            process.exitCode = 1;
+          }
         }
       }
     } catch (error) {
-      // The listing or the head is not trustworthy yet: tell the caller to retry,
-      // so the retry decision is not left to the shell.
+      // Malformed inputs or a bug in a helper: retry once, then fail closed.
       console.error(error.message);
       process.exitCode = 3;
     }
