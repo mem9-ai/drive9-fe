@@ -1,5 +1,3 @@
-import { readFileSync, realpathSync } from 'node:fs';
-
 // Files that decide what the privileged Netlify deploy build executes, or that
 // make it install and run third-party code. Netlify runs the build command from
 // the merged revision, reads configuration from the repository root or the base
@@ -118,30 +116,6 @@ export const PRIVILEGED_EXAMPLES = [...PREFIX_SAMPLES, ...EXACT_PATHS];
 
 export const UNCHANGED = 'Build surface unchanged.';
 
+// The gate consumes these as a module (scripts/publication-approval.mjs); there is
+// deliberately no second CLI entry point that could evaluate "changed" on its own.
 export const changedSurface = files => files.filter(privilegedBuildSurface);
-
-const invokedDirectly = () => {
-  try {
-    return process.argv[1] ? realpathSync(process.argv[1]) === import.meta.filename : false;
-  } catch {
-    return false;
-  }
-};
-
-// Reads a newline-separated path list on stdin — GitHub's pull request file list,
-// which is computed against the merge base and reports both sides of a rename —
-// and prints the privileged subset, or UNCHANGED. This is the only mode: the gate
-// must have exactly one definition of "changed".
-if (invokedDirectly()) {
-  if (!process.argv.includes('--stdin')) {
-    console.error('usage: node scripts/build-surface.mjs --stdin < changed-paths.txt');
-    process.exitCode = 2;
-  } else {
-    const files = readFileSync(0, 'utf8')
-      .split('\n')
-      .map(line => line.trim())
-      .filter(Boolean);
-    const changed = changedSurface(files);
-    console.log(changed.length === 0 ? UNCHANGED : changed.join('\n'));
-  }
-}
