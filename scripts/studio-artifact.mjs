@@ -38,6 +38,9 @@ export async function studioHashes(directory, prefix = '') {
   return hashes;
 }
 
+// The manifest is candidate-supplied, so this proves the bundle is self-consistent,
+// not who built it: a compromised publisher can ship any bundle with a matching
+// manifest. Verification of a publisher signature is tracked in #147.
 export async function verifyStudioArtifact(directory, manifestPath) {
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
   if (!manifest || manifest.repository !== sourceRepository || !/^[a-f0-9]{40}$/.test(manifest.commit || '') ||

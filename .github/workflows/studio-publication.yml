@@ -65,7 +65,8 @@ jobs:
           # Netlify executes this surface from the merged revision, so a change
           # to it changes code execution in the deploy environment. The decision
           # logic lives in scripts/publication-approval.mjs and
-          # scripts/build-surface.mjs so it is covered by tests.
+          # scripts/build-surface.mjs so it is covered by tests; the dispatch in
+          # this step is the one part tests cannot reach (tracked in #148).
           verified=0
           for attempt in 1 2; do
             gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" > "$RUNNER_TEMP/files.json"
@@ -111,7 +112,6 @@ jobs:
         id: validate
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_BASE: ${{ github.event.pull_request.base.sha }}
           # Artifact-only validation uses the same identity story as the approval
           # exemption: the publisher app itself, plus the branch name the
           # publisher uses (a candidate picking that name only makes validation

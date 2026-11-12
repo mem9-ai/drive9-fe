@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { PRIVILEGED_EXAMPLES, privilegedBuildSurface, UNCHANGED } from '../scripts/build-surface.mjs';
+import { isConsoleArtifactPath, PRIVILEGED_EXAMPLES, privilegedBuildSurface, UNCHANGED } from '../scripts/build-surface.mjs';
 
 test('the privileged surface is exactly what the project ships or executes', () => {
   for (const path of PRIVILEGED_EXAMPLES) {
@@ -56,4 +56,17 @@ test('CODEOWNERS covers the whole enforced surface', () => {
     assert.ok(privilegedBuildSurface(path), path);
     assert.ok(covers(path), `CODEOWNERS must cover ${path}`);
   }
+});
+
+test('every console-artifact path is also a privileged build path', () => {
+  // The exemption waves a publisher PR through before the surface check runs, so
+  // a path accepted here but missing from the surface would be published with
+  // neither a maintainer approval nor artifact validation.
+  for (const path of ['vendor/studio/index.html', 'vendor/studio/assets/app.js', 'vendor/studio/skills/tidb-agent-workspace/SKILL.md', 'vendor/studio-build.json']) {
+    assert.ok(isConsoleArtifactPath(path), path);
+    assert.ok(privilegedBuildSurface(path), `${path} must also be in the privileged surface`);
+  }
+  // ...and the artifact set stays inside the vendor tree.
+  assert.equal(isConsoleArtifactPath('vendor/studio-config.json'), false);
+  assert.equal(isConsoleArtifactPath('site/install.sh'), false);
 });

@@ -35,6 +35,16 @@ const DEPENDENCY_FILES = [
   'poetry.lock',
 ];
 
+// The Console artifact lives under one directory plus one provenance manifest.
+// These two constants are the only place those strings are written: the approval
+// exemption, the trusted validator and the surface below all derive from them, so
+// widening one of the three can no longer leave the others behind. Widening an
+// artifact path on its own would be the quiet failure mode — a publisher pull
+// request touching only that path would read "Build surface unchanged." and be
+// waved through before the exemption is even consulted.
+const CONSOLE_ARTIFACT_DIRECTORY = 'vendor/studio/';
+const CONSOLE_MANIFEST = 'vendor/studio-build.json';
+
 // What the site ships as code rather than as text: the installers (run on the
 // visitor's machine) and the Console bundle with its provenance manifest (served
 // to the browser, published by automation). These are not executed by the build,
@@ -47,18 +57,16 @@ const DEPENDENCY_FILES = [
 // to be: `/releases/*` is redirected to releases.drive9.ai with `force = true` in
 // `site/netlify.toml`, so those files are unreachable in production. The redirect
 // is what protects them, and that file is in the surface.
-// The Console artifact and its provenance manifest: what the automated publisher
-// ships. One definition, imported by the approval exemption and by the trusted
-// validator, so the two halves of the exemption cannot disagree about which
-// paths they cover.
-export const isConsoleArtifactPath = path =>
-  path.startsWith('vendor/studio/') || path === 'vendor/studio-build.json';
-
 const PUBLISHED_CODE = [
   'site/install.sh',
   'site/install.ps1',
-  'vendor/studio-build.json',
+  CONSOLE_MANIFEST,
 ];
+
+// Imported by the approval exemption and by the trusted validator, so the two
+// halves of the exemption cannot disagree about which paths they cover.
+export const isConsoleArtifactPath = path =>
+  path.startsWith(CONSOLE_ARTIFACT_DIRECTORY) || path === CONSOLE_MANIFEST;
 
 // Precomputed once: this predicate runs over every changed path.
 const SITE_DEPENDENCY_FILES = DEPENDENCY_FILES.map(name => `site/${name}`);
@@ -80,7 +88,7 @@ const FUNCTION_DIRECTORIES = [
 const DIRECTORY_PREFIXES = [
   'scripts/',
   '.github/workflows/',
-  'vendor/studio/',
+  CONSOLE_ARTIFACT_DIRECTORY,
   ...FUNCTION_DIRECTORIES.map(directory => `${directory}/`),
 ];
 
