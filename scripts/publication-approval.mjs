@@ -1,4 +1,4 @@
-import { readFileSync, realpathSync } from 'node:fs';
+import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { changedSurface, isConsoleArtifactPath, UNCHANGED } from './build-surface.mjs';
 
 // Trusted decisions for the Studio publication gate. This logic used to live as
@@ -87,15 +87,18 @@ export function changedPaths(files, pull, head) {
 //   'approval'    — a privileged change without an approval, fail
 //   'unverifiable'— the file list cannot be trusted yet, retry
 // Any other shape is a bug in this module, not in the workflow.
+// `paths` is the full changed-file list, not just the privileged subset: the
+// validation step consumes it to prove an artifact publication changed nothing
+// else, and it must not be reconstructed from a second definition of "changed".
 export function gate({ files, pull, reviews, head, authorType, authorLogin }) {
   const paths = changedPaths(files, pull, head);
   const changed = changedSurface(paths);
-  if (changed.length === 0) return { outcome: 'unchanged', changed, approved: [] };
+  if (changed.length === 0) return { outcome: 'unchanged', paths, changed, approved: [] };
   if (botArtifactOnlyPublication(paths, authorType, authorLogin)) {
-    return { outcome: 'exempt', changed, approved: [] };
+    return { outcome: 'exempt', paths, changed, approved: [] };
   }
   const approved = approvedLogins(reviews, head);
-  return { outcome: approved.length === 0 ? 'approval' : 'approved', changed, approved };
+  return { outcome: approved.length === 0 ? 'approval' : 'approved', paths, changed, approved };
 }
 
 export const APPROVAL_HINT = [
@@ -121,7 +124,7 @@ if (invokedDirectly()) {
   const [command, ...args] = process.argv.slice(2);
   if (command !== 'gate') {
     console.error('usage: publication-approval.mjs gate --files F --pull P --reviews R --head SHA '
-      + '--author-type T --author-login LOGIN');
+      + '--author-type T --author-login LOGIN [--paths-out F]');
     process.exitCode = 2;
   } else {
     try {
@@ -133,6 +136,12 @@ if (invokedDirectly()) {
         authorType: option(args, '--author-type'),
         authorLogin: option(args, '--author-login'),
       });
+      const pathsOut = option(args, '--paths-out');
+      if (pathsOut) {
+        // Written before the verdict matters: the validation step needs the same
+        // changed-file list the gate just verified, including the pass outcomes.
+        writeFileSync(pathsOut, `${result.paths.join('\n')}\n`);
+      }
       if (result.outcome === 'unchanged') {
         console.log(UNCHANGED);
       } else {

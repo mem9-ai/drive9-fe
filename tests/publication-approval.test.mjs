@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { approvedLogins, botArtifactOnlyPublication, changedPaths } from '../scripts/publication-approval.mjs';
 
 const HEAD = 'a'.repeat(40);
@@ -69,17 +70,21 @@ test('the gate decides every outcome and tells the caller when to retry', async 
   const pull = join(directory, 'pull.json');
   const reviews = join(directory, 'reviews.json');
   await writeFile(reviews, JSON.stringify([review('mornyx', 'APPROVED')]));
+  const pathsOut = join(directory, 'changed-paths.txt');
   const run = async (changeFiles, { authorType = 'User', authorLogin = 'srstack', head = HEAD, pullHead = HEAD, reviewsPath = reviews } = {}) => {
     await writeFile(files, JSON.stringify([changeFiles.map(filename => ({ filename }))]));
     await writeFile(pull, JSON.stringify({ changed_files: changeFiles.length, head: { sha: pullHead } }));
     return spawnSync(process.execPath, [cli, 'gate', '--files', files, '--pull', pull, '--reviews', reviewsPath,
-      '--head', head, '--author-type', authorType, '--author-login', authorLogin], { encoding: 'utf8' });
+      '--head', head, '--author-type', authorType, '--author-login', authorLogin,
+      '--paths-out', pathsOut], { encoding: 'utf8' });
   };
 
-  // Nothing privileged changed: pass without looking at reviews.
+  // Nothing privileged changed: pass without looking at reviews, and still hand
+  // the validation step the full changed-file list.
   const unchanged = await run(['site/index.html']);
   assert.equal(unchanged.status, 0);
   assert.equal(unchanged.stdout.trim(), 'Build surface unchanged.');
+  assert.equal(await readFile(pathsOut, 'utf8'), 'site/index.html\n');
 
   // Privileged change with an approval on this head: pass.
   const approved = await run(['scripts/build-surface.mjs']);
@@ -96,11 +101,13 @@ test('the gate decides every outcome and tells the caller when to retry', async 
   assert.match(rejected.stderr, /needs an approving review/);
   assert.match(rejected.stderr, /does not re-run this check automatically/);
 
-  // Publisher app shipping only the artifact: pass without an approval.
+  // Publisher app shipping only the artifact: pass without an approval, and the
+  // list written for validation keeps every path, not just the privileged ones.
   const exempt = await run(['vendor/studio/index.html', 'vendor/studio-build.json'],
     { authorType: 'Bot', authorLogin: 'mem9-studio-publisher[bot]' });
   assert.equal(exempt.status, 0);
   assert.match(exempt.stdout, /maintainer approval is not required/);
+  assert.equal(await readFile(pathsOut, 'utf8'), 'vendor/studio/index.html\nvendor/studio-build.json\n');
 
   // The same files from any other app, or mixed with code: approval required.
   const otherApp = await run(['vendor/studio/index.html'], { authorType: 'Bot', authorLogin: 'dependabot[bot]', reviewsPath: none });
@@ -134,6 +141,8 @@ test('the workflow keeps only fetching and one gate invocation', () => {
   assert.match(workflow, /PR_AUTHOR_LOGIN: \$\{\{ github\.event\.pull_request\.user\.login \}\}/);
   assert.match(workflow, /publication-approval\.mjs gate/);
   assert.match(workflow, /--author-type "\$PR_AUTHOR_TYPE" --author-login "\$PR_AUTHOR_LOGIN"/);
+  // The validation step consumes this file; the gate must be what produces it.
+  assert.match(workflow, /--paths-out "\$RUNNER_TEMP\/changed-paths\.txt"/);
   // The decision must not be re-implemented in shell any more.
   assert.doesNotMatch(workflow, /build-surface\.mjs --stdin/);
   assert.doesNotMatch(workflow, /bot-artifact/);

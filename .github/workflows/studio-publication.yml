@@ -77,7 +77,8 @@ jobs:
             node scripts/publication-approval.mjs gate \
               --files "$RUNNER_TEMP/files.json" --pull "$RUNNER_TEMP/pull.json" \
               --reviews "$RUNNER_TEMP/reviews.json" --head "$HEAD_SHA" \
-              --author-type "$PR_AUTHOR_TYPE" --author-login "$PR_AUTHOR_LOGIN"
+              --author-type "$PR_AUTHOR_TYPE" --author-login "$PR_AUTHOR_LOGIN" \
+              --paths-out "$RUNNER_TEMP/changed-paths.txt"
             status=$?
             set -e
             if [ "$status" -ne 3 ]; then
