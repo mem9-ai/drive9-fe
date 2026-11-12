@@ -47,6 +47,13 @@ const DEPENDENCY_FILES = [
 // to be: `/releases/*` is redirected to releases.drive9.ai with `force = true` in
 // `site/netlify.toml`, so those files are unreachable in production. The redirect
 // is what protects them, and that file is in the surface.
+// The Console artifact and its provenance manifest: what the automated publisher
+// ships. One definition, imported by the approval exemption and by the trusted
+// validator, so the two halves of the exemption cannot disagree about which
+// paths they cover.
+export const isConsoleArtifactPath = path =>
+  path.startsWith('vendor/studio/') || path === 'vendor/studio-build.json';
+
 const PUBLISHED_CODE = [
   'site/install.sh',
   'site/install.ps1',
@@ -91,14 +98,7 @@ export const privilegedBuildSurface = path =>
 // One sample per directory prefix, plus every exact path. The predicate test and
 // the CODEOWNERS coverage test both iterate this list, so a path added to any
 // canonical set is automatically pinned, and CODEOWNERS has to cover it too.
-const PREFIX_SAMPLES = [
-  'scripts/prepare-studio.mjs',
-  'scripts/netlify-ignore.mjs',
-  '.github/workflows/studio-publication.yml',
-  'vendor/studio/index.html',
-  'vendor/studio/assets/app.js',
-  ...FUNCTION_DIRECTORIES.map(directory => `${directory}/hello.mjs`),
-];
+const PREFIX_SAMPLES = DIRECTORY_PREFIXES.map(prefix => `${prefix}hello.mjs`);
 
 export const PRIVILEGED_EXAMPLES = [...PREFIX_SAMPLES, ...EXACT_PATHS];
 

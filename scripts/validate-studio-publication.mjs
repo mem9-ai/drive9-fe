@@ -6,9 +6,8 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { realpathSync } from 'node:fs';
 import { studioPublicFile, verifyStudioArtifact } from './studio-artifact.mjs';
+import { isConsoleArtifactPath } from './build-surface.mjs';
 import { prepareStudio } from './prepare-studio.mjs';
-
-const artifactPath = path => path.startsWith('vendor/studio/') || path === 'vendor/studio-build.json';
 
 // Candidate Git objects are data only. All imports and the site template above/below
 // come from the trusted default-branch checkout, never from the PR tree.
@@ -25,8 +24,8 @@ export async function validateStudioPublication(repository, head, artifactOnly, 
   // Publishing an artifact is author-independent: a candidate that touches the
   // Console artifact may change nothing else, bot or human. Previously only bot
   // PRs were restricted, so a human PR could mix the artifact with arbitrary code.
-  if (artifactOnly || files.some(artifactPath)) {
-    assert.ok(files.every(artifactPath), 'Publication may change only Console artifacts and provenance.');
+  if (artifactOnly || files.some(isConsoleArtifactPath)) {
+    assert.ok(files.every(isConsoleArtifactPath), 'Publication may change only Console artifacts and provenance.');
   }
   const temporary = await mkdtemp(join(tmpdir(), 'studio-candidate-'));
   try {

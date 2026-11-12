@@ -90,21 +90,26 @@ test('the CLI fails closed on approvals and reports the parsed paths', async t =
   assert.equal(paths.stdout.trim(), 'scripts/x.mjs');
 });
 
-test('only a bot publishing nothing but the artifact skips the approval requirement', () => {
+test('only the publisher app publishing nothing but the artifact skips the approval requirement', () => {
   const artifact = ['vendor/studio/index.html', 'vendor/studio-build.json'];
-  assert.equal(botArtifactOnlyPublication(artifact, 'Bot'), true);
+  assert.equal(botArtifactOnlyPublication(artifact, 'Bot', 'mem9-studio-publisher[bot]'), true);
+  // "Bot" is not a principal: every installed GitHub App authors as `Bot`.
+  for (const login of ['dependabot[bot]', 'github-actions[bot]', 'renovate[bot]', 'app/mem9-studio-publisher', 'mem9-studio-publisher', 'mem9-studio-publisher[bot] ']) {
+    assert.equal(botArtifactOnlyPublication(artifact, 'Bot', login), false, login);
+  }
+  assert.equal(botArtifactOnlyPublication(artifact, 'Bot', undefined), false);
+  assert.equal(botArtifactOnlyPublication(artifact, 'User', 'mem9-studio-publisher[bot]'), false);
   // Mixing one line of code into a release disqualifies it.
-  assert.equal(botArtifactOnlyPublication([...artifact, 'scripts/prepare-studio.mjs'], 'Bot'), false);
-  assert.equal(botArtifactOnlyPublication([...artifact, 'netlify.toml'], 'Bot'), false);
+  assert.equal(botArtifactOnlyPublication([...artifact, 'scripts/prepare-studio.mjs'], 'Bot', 'mem9-studio-publisher[bot]'), false);
+  assert.equal(botArtifactOnlyPublication([...artifact, 'netlify.toml'], 'Bot', 'mem9-studio-publisher[bot]'), false);
   // A human PR is never exempt, even when it only touches the artifact.
-  assert.equal(botArtifactOnlyPublication(artifact, 'User'), false);
-  assert.equal(botArtifactOnlyPublication(artifact, 'Organization'), false);
-  assert.equal(botArtifactOnlyPublication(artifact, undefined), false);
-  assert.equal(botArtifactOnlyPublication(artifact, 'bot'), false);
+  assert.equal(botArtifactOnlyPublication(artifact, 'User', 'srstack'), false);
+  assert.equal(botArtifactOnlyPublication(artifact, 'Organization', 'mem9-ai'), false);
+  assert.equal(botArtifactOnlyPublication(artifact, 'bot', 'mem9-studio-publisher[bot]'), false);
   // Prefix lookalikes are not the artifact directory.
-  assert.equal(botArtifactOnlyPublication(['vendor/studio-evil/index.html'], 'Bot'), false);
-  assert.equal(botArtifactOnlyPublication(['vendor/studio'], 'Bot'), false);
-  assert.equal(botArtifactOnlyPublication([], 'Bot'), false);
+  assert.equal(botArtifactOnlyPublication(['vendor/studio-evil/index.html'], 'Bot', 'mem9-studio-publisher[bot]'), false);
+  assert.equal(botArtifactOnlyPublication(['vendor/studio'], 'Bot', 'mem9-studio-publisher[bot]'), false);
+  assert.equal(botArtifactOnlyPublication([], 'Bot', 'mem9-studio-publisher[bot]'), false);
 });
 
 test('the bot-artifact CLI fails closed and the workflow passes the author type', async t => {
@@ -114,20 +119,27 @@ test('the bot-artifact CLI fails closed and the workflow passes the author type'
   const pathsFile = join(directory, 'changed-paths.txt');
 
   await writeFile(pathsFile, 'vendor/studio/index.html\nvendor/studio-build.json\n');
-  const exempt = spawnSync(process.execPath, [cli, 'bot-artifact', '--paths', pathsFile, '--author-type', 'Bot'], { encoding: 'utf8' });
+  const exempt = spawnSync(process.execPath, [cli, 'bot-artifact', '--paths', pathsFile, '--author-type', 'Bot', '--author-login', 'mem9-studio-publisher[bot]'], { encoding: 'utf8' });
   assert.equal(exempt.status, 0);
   assert.match(exempt.stdout, /approval is not required/);
 
-  const human = spawnSync(process.execPath, [cli, 'bot-artifact', '--paths', pathsFile, '--author-type', 'User'], { encoding: 'utf8' });
+  const otherApp = spawnSync(process.execPath, [cli, 'bot-artifact', '--paths', pathsFile, '--author-type', 'Bot', '--author-login', 'dependabot[bot]'], { encoding: 'utf8' });
+  assert.equal(otherApp.status, 1);
+
+  const human = spawnSync(process.execPath, [cli, 'bot-artifact', '--paths', pathsFile, '--author-type', 'User', '--author-login', 'srstack'], { encoding: 'utf8' });
   assert.equal(human.status, 1);
 
   await writeFile(pathsFile, 'vendor/studio/index.html\nscripts/build-surface.mjs\n');
-  const mixed = spawnSync(process.execPath, [cli, 'bot-artifact', '--paths', pathsFile, '--author-type', 'Bot'], { encoding: 'utf8' });
+  const mixed = spawnSync(process.execPath, [cli, 'bot-artifact', '--paths', pathsFile, '--author-type', 'Bot', '--author-login', 'mem9-studio-publisher[bot]'], { encoding: 'utf8' });
   assert.equal(mixed.status, 1);
 
   // The exemption is only safe because the workflow reads the author type from
   // the pull request itself: a branch name or the sender would be forgeable.
   const workflow = readFileSync(new URL('../.github/workflows/studio-publication.yml', import.meta.url), 'utf8');
   assert.match(workflow, /PR_AUTHOR_TYPE: \$\{\{ github\.event\.pull_request\.user\.type \}\}/);
-  assert.match(workflow, /bot-artifact \\\n\s+--paths "\$RUNNER_TEMP\/changed-paths\.txt" --author-type "\$PR_AUTHOR_TYPE"/);
+  assert.match(workflow, /PR_AUTHOR_LOGIN: \$\{\{ github\.event\.pull_request\.user\.login \}\}/);
+  assert.match(workflow, /--author-type "\$PR_AUTHOR_TYPE" --author-login "\$PR_AUTHOR_LOGIN"/);
+  // One identity story: the artifact-only validation must not fall back to "any Bot".
+  assert.match(workflow, /ARTIFACT_ONLY: \$\{\{ github\.event\.pull_request\.user\.login == 'mem9-studio-publisher\[bot\]'/);
+  assert.doesNotMatch(workflow, /ARTIFACT_ONLY: \$\{\{ github\.event\.pull_request\.user\.type == 'Bot'/);
 });

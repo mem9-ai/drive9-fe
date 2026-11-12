@@ -1,4 +1,5 @@
 import { readFileSync, realpathSync } from 'node:fs';
+import { isConsoleArtifactPath } from './build-surface.mjs';
 
 // Trusted decisions for the Studio publication gate. This logic used to live as
 // inline jq in `.github/workflows/studio-publication.yml`, where no test could
@@ -33,20 +34,27 @@ export function approvedLogins(reviews, head) {
     .sort();
 }
 
-const artifactPath = path => path.startsWith('vendor/studio/') || path === 'vendor/studio-build.json';
-
 // The Console publisher app opens artifact-only pull requests and merges them
 // itself (24 of them in the week before this gate was written, every one merged
 // by the app with no review). Requiring a maintainer to approve a minified
 // bundle would not add a real control, and it would stop that pipeline: the
 // honest control for those releases is the artifact path allowlist, the manifest
-// checksum check and the credential scan that still run. So a bot-authored pull
-// request may skip the approval requirement only when every path it touches is
-// the artifact itself, which makes it impossible to smuggle code in with a
-// release. `authorType` comes from GitHub's `pull_request.user.type`; anything
-// other than the exact string `Bot` needs an approval.
-export function botArtifactOnlyPublication(paths, authorType) {
-  return authorType === 'Bot' && paths.length > 0 && paths.every(path => artifactPath(path));
+// checksum check and the credential scan that still run.
+//
+// The principal is the publisher app itself, not "any bot": GitHub enforces no
+// such thing as a single `Bot` type — every GitHub App installed on the
+// repository (Dependabot-class apps, anything an administrator adds later, or an
+// installed app that gets compromised) authors pull requests with
+// `user.type == 'Bot'`. The login is server-provided and cannot be chosen by the
+// PR author, so the exemption requires both, plus every changed path being the
+// artifact, which makes it impossible to smuggle code in with a release.
+export const CONSOLE_PUBLISHER_LOGIN = 'mem9-studio-publisher[bot]';
+
+export function botArtifactOnlyPublication(paths, authorType, authorLogin) {
+  return authorType === 'Bot' &&
+    authorLogin === CONSOLE_PUBLISHER_LOGIN &&
+    paths.length > 0 &&
+    paths.every(path => isConsoleArtifactPath(path));
 }
 
 // Every path the candidate touched, both sides of a rename. The listing is
@@ -107,15 +115,16 @@ if (invokedDirectly()) {
     } else if (command === 'bot-artifact') {
       const paths = readFileSync(option(args, '--paths'), 'utf8').split('\n').map(line => line.trim()).filter(Boolean);
       const authorType = option(args, '--author-type');
-      if (botArtifactOnlyPublication(paths, authorType)) {
-        console.log(`Artifact-only publication by ${authorType}: a maintainer approval is not required.`);
+      const authorLogin = option(args, '--author-login');
+      if (botArtifactOnlyPublication(paths, authorType, authorLogin)) {
+        console.log(`Artifact-only publication by ${authorLogin}: a maintainer approval is not required.`);
       } else {
         process.exitCode = 1;
       }
     } else {
       console.error('usage: publication-approval.mjs changed-paths --files F --pull P --head SHA');
       console.error('       publication-approval.mjs approvals --reviews R --head SHA');
-      console.error('       publication-approval.mjs bot-artifact --paths P --author-type Bot|User');
+      console.error('       publication-approval.mjs bot-artifact --paths P --author-type Bot|User --author-login LOGIN');
       process.exitCode = 2;
     }
   } catch (error) {
