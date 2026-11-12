@@ -46,6 +46,9 @@ const DEPENDENCY_FILES = [
 // walking that path.
 export const CONSOLE_ARTIFACT_DIRECTORY = 'vendor/studio/';
 export const CONSOLE_MANIFEST = 'vendor/studio-build.json';
+// Detached signature over the manifest bytes (#147); part of the artifact so a
+// publisher pull request can carry it.
+export const CONSOLE_SIGNATURE = 'vendor/studio-build.json.sig';
 
 // What the site ships as code rather than as text: the installers (run on the
 // visitor's machine) and the Console bundle with its provenance manifest (served
@@ -63,12 +66,13 @@ const PUBLISHED_CODE = [
   'site/install.sh',
   'site/install.ps1',
   CONSOLE_MANIFEST,
+  CONSOLE_SIGNATURE,
 ];
 
 // Imported by the approval exemption and by the trusted validator, so the two
 // halves of the exemption cannot disagree about which paths they cover.
 export const isConsoleArtifactPath = path =>
-  path.startsWith(CONSOLE_ARTIFACT_DIRECTORY) || path === CONSOLE_MANIFEST;
+  path.startsWith(CONSOLE_ARTIFACT_DIRECTORY) || path === CONSOLE_MANIFEST || path === CONSOLE_SIGNATURE;
 
 // Precomputed once: this predicate runs over every changed path.
 const SITE_DEPENDENCY_FILES = DEPENDENCY_FILES.map(name => `site/${name}`);

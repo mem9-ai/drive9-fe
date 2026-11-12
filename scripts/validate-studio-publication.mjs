@@ -6,12 +6,13 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { realpathSync } from 'node:fs';
 import { studioPublicFile, verifyStudioArtifact } from './studio-artifact.mjs';
-import { CONSOLE_ARTIFACT_DIRECTORY, CONSOLE_MANIFEST, isConsoleArtifactPath } from './build-surface.mjs';
+import { CONSOLE_ARTIFACT_DIRECTORY, CONSOLE_MANIFEST, CONSOLE_SIGNATURE, isConsoleArtifactPath } from './build-surface.mjs';
+import { signatureConfigured, verifyManifestSignature } from './studio-signature.mjs';
 import { prepareStudio } from './prepare-studio.mjs';
 
 // Candidate Git objects are data only. All imports and the site template above/below
 // come from the trusted default-branch checkout, never from the PR tree.
-export async function validateStudioPublication(repository, head, artifactOnly, changedFilesPath) {
+export async function validateStudioPublication(repository, head, artifactOnly, changedFilesPath, publicKey) {
   assert.match(head, /^[a-f0-9]{40}$/);
   assert.equal(typeof artifactOnly, 'boolean');
   const git = (...args) => execFileSync('git', args, { cwd: repository, maxBuffer: 32 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -32,10 +33,15 @@ export async function validateStudioPublication(repository, head, artifactOnly, 
     // The extraction scope comes from the same constants the exemption uses, so a
     // widened artifact cannot be validated here while being waved through there.
     const artifactDirectory = CONSOLE_ARTIFACT_DIRECTORY.replace(/\/$/, '');
-    const entries = git('ls-tree', '-rz', '--full-tree', head, '--', artifactDirectory, CONSOLE_MANIFEST).toString().split('\0').filter(Boolean);
+    const scope = [artifactDirectory, CONSOLE_MANIFEST];
+    // Extract the detached signature only when a key is pinned: it is optional
+    // until the publisher signs (#147), but a candidate cannot omit it once it is
+    // required, and an unextracted signature could not be verified at all.
+    if (signatureConfigured(publicKey)) scope.push(CONSOLE_SIGNATURE);
+    const entries = git('ls-tree', '-rz', '--full-tree', head, '--', ...scope).toString().split('\0').filter(Boolean);
     for (const entry of entries) {
       const match = entry.match(/^100644 blob ([a-f0-9]{40})\t(.+)$/);
-      assert.ok(match && (match[2] === CONSOLE_MANIFEST ||
+      assert.ok(match && (match[2] === CONSOLE_MANIFEST || match[2] === CONSOLE_SIGNATURE ||
         (match[2].startsWith(CONSOLE_ARTIFACT_DIRECTORY) && studioPublicFile(match[2].slice(CONSOLE_ARTIFACT_DIRECTORY.length)))),
       'Candidate contains an unexpected artifact path or Git mode.');
       const [, object, path] = match;
@@ -45,6 +51,18 @@ export async function validateStudioPublication(repository, head, artifactOnly, 
     }
     const consoleDirectory = join(temporary, artifactDirectory);
     await verifyStudioArtifact(consoleDirectory, join(temporary, CONSOLE_MANIFEST));
+    if (signatureConfigured(publicKey)) {
+      // Provenance: the manifest must carry a signature from the pinned publisher
+      // key, so a compromised publisher app cannot ship an arbitrary bundle with a
+      // self-consistent manifest (#147).
+      await verifyManifestSignature(
+        await readFile(join(temporary, CONSOLE_MANIFEST)),
+        await readFile(join(temporary, CONSOLE_SIGNATURE), 'utf8').catch(() => {
+          throw new Error('Console manifest signature is missing.');
+        }),
+        publicKey,
+      );
+    }
     const siteDirectory = join(temporary, 'site');
     await cp(fileURLToPath(new URL('../site', import.meta.url)), siteDirectory, { recursive: true });
     await prepareStudio({ consoleDirectory, siteDirectory, apiOrigin: 'https://api.example.invalid' });
