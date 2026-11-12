@@ -1,7 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import {
   CONSOLE_ARTIFACT_DIRECTORY,
@@ -9,6 +7,7 @@ import {
   isConsoleArtifactPath,
   PRIVILEGED_EXAMPLES,
   privilegedBuildSurface,
+  changedSurface,
   UNCHANGED,
 } from '../scripts/build-surface.mjs';
 
@@ -21,34 +20,19 @@ test('the privileged surface is exactly what the project ships or executes', () 
   }
 });
 
-test('the CLI prints the pinned sentinel and one path per line', () => {
-  const cli = fileURLToPath(new URL('../scripts/build-surface.mjs', import.meta.url));
-  const run = input => spawnSync(process.execPath, [cli, '--stdin'], { input, encoding: 'utf8' });
-  const unchanged = run('site/index.html\nREADME.md\n');
-  assert.equal(unchanged.status, 0);
-  assert.equal(unchanged.stdout.trim(), UNCHANGED);
+test('the changed subset keeps every privileged path, including both sides of a rename', () => {
+  // GitHub reports the new and the previous name of a rename, so a privileged file
+  // cannot be moved out of the gate by renaming it.
   assert.equal(UNCHANGED, 'Build surface unchanged.');
-  const changed = run('scripts/evil.mjs\nsite/index.html\nsite/package.json\n');
-  assert.equal(changed.status, 0);
-  assert.deepEqual(changed.stdout.trim().split('\n'), ['scripts/evil.mjs', 'site/package.json']);
-});
-
-test('renames of privileged files are visible to the gate', () => {
-  const cli = fileURLToPath(new URL('../scripts/build-surface.mjs', import.meta.url));
-  // GitHub reports both the new and the previous name for a rename.
-  const renamed = spawnSync(process.execPath, [cli, '--stdin'], {
-    input: 'docs/notes.md\nscripts/prepare-studio.mjs\n',
-    encoding: 'utf8',
-  });
-  assert.equal(renamed.status, 0);
-  assert.equal(renamed.stdout.trim(), 'scripts/prepare-studio.mjs');
-});
-
-test('the CLI refuses to run without the stdin contract', () => {
-  const cli = fileURLToPath(new URL('../scripts/build-surface.mjs', import.meta.url));
-  const bare = spawnSync(process.execPath, [cli], { encoding: 'utf8' });
-  assert.equal(bare.status, 2);
-  assert.match(bare.stderr, /--stdin/);
+  assert.deepEqual(changedSurface(['site/index.html', 'README.md']), []);
+  assert.deepEqual(
+    changedSurface(['scripts/evil.mjs', 'site/index.html', 'site/package.json']),
+    ['scripts/evil.mjs', 'site/package.json'],
+  );
+  assert.deepEqual(
+    changedSurface(['docs/notes.md', 'scripts/prepare-studio.mjs', 'vendor/studio/x.js']),
+    ['scripts/prepare-studio.mjs', 'vendor/studio/x.js'],
+  );
 });
 
 test('CODEOWNERS covers the whole enforced surface', () => {

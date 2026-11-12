@@ -165,6 +165,15 @@ test('the workflow keeps only fetching and one gate invocation', () => {
   assert.doesNotMatch(workflow, /build-surface\.mjs --stdin/);
   assert.doesNotMatch(workflow, /bot-artifact/);
   assert.doesNotMatch(workflow, /case "\$changed" in/);
+  // Identity tripwire: artifact-only validation stays pinned to the publisher app
+  // and must never widen back to "any Bot" (the exact principal-confusion #145
+  // fixed). These two assertions used to live in the deleted bot-artifact test.
+  assert.match(workflow, /ARTIFACT_ONLY: \$\{\{ github\.event\.pull_request\.user\.login == 'mem9-studio-publisher\[bot\]'/);
+  assert.doesNotMatch(workflow, /ARTIFACT_ONLY: \$\{\{ github\.event\.pull_request\.user\.type == 'Bot'/);
+  // Exactly one decision call, and its exit code is forwarded rather than swallowed.
+  assert.equal(workflow.match(/publication-approval\.mjs gate/g).length, 1);
+  assert.match(workflow, /if \[ "\$status" -ne 3 \]; then/);
+  assert.match(workflow, /exit "\$status"/);
 });
 
 test('only the publisher app publishing nothing but the artifact skips the approval requirement', () => {

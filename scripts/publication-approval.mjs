@@ -149,9 +149,10 @@ if (invokedDirectly()) {
         process.exitCode = 3;
       } else {
         const pathsOut = option(args, '--paths-out');
-        if (pathsOut) {
-          // Written for every passing outcome: the validation step needs the same
-          // changed-file list the gate just verified, not a reconstructed one.
+        if (pathsOut && result.outcome !== 'approval') {
+          // Written for the passing outcomes only: the validation step runs after
+          // exit 0 and needs the same changed-file list the gate just verified,
+          // not one reconstructed from a second definition of "changed".
           writeFileSync(pathsOut, `${result.paths.join('\n')}\n`);
         }
         if (result.outcome === 'unchanged') {

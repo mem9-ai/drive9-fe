@@ -72,6 +72,9 @@ jobs:
           for attempt in 1 2; do
             gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" > "$RUNNER_TEMP/files.json"
             gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > "$RUNNER_TEMP/pull.json"
+            # Fetched on every attempt so one gate call sees one consistent set of
+            # inputs: a content-only PR now depends on this third read succeeding,
+            # which fails closed and is recovered by the attempt loop.
             gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews?per_page=100" > "$RUNNER_TEMP/reviews.json"
             set +e
             node scripts/publication-approval.mjs gate \
