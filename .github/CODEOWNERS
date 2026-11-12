@@ -52,3 +52,4 @@
 /scripts/                   @qiffang @srstack
 /vendor/studio/             @qiffang @srstack
 /vendor/studio-build.json   @qiffang @srstack
+/vendor/studio-build.json.sig  @qiffang @srstack
