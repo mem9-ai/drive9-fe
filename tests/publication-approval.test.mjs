@@ -79,6 +79,8 @@ test('the CLI fails closed on approvals and reports the parsed paths', async t =
   const rejected = spawnSync(process.execPath, [cli, 'approvals', '--reviews', reviewsFile, '--head', HEAD], { encoding: 'utf8' });
   assert.equal(rejected.status, 1);
   assert.match(rejected.stderr, /needs an approving review/);
+  // The check turns red on approval alone, so the failure has to say how to recover.
+  assert.match(rejected.stderr, /re-run "Trusted Studio publication validation"/);
 
   const paths = spawnSync(process.execPath, [cli, 'changed-paths', '--files', filesFile, '--pull', pullFile, '--head', HEAD], { encoding: 'utf8' });
   assert.equal(paths.status, 0);

@@ -80,6 +80,10 @@ if (invokedDirectly()) {
       const approved = approvedLogins(readJson(option(args, '--reviews')), head);
       if (approved.length === 0) {
         console.error('Build-surface change needs an approving review from a maintainer on this exact head.');
+        console.error(
+          'After approving, re-run "Trusted Studio publication validation" for this branch to re-evaluate: '
+            + 'the review-triggered run was removed so a candidate cannot run this workflow from its own head.',
+        );
         process.exitCode = 1;
       } else {
         console.log(approved.join('\n'));
