@@ -7,44 +7,110 @@ import { readFileSync, realpathSync } from 'node:fs';
 // any of these changes code execution in the deploy environment. This module is
 // the single source for the gate in `.github/workflows/studio-publication.yml`.
 //
-// `.github/CODEOWNERS` keeps a deliberately broader review set. The examples
-// below are the canonical list the tests and the CODEOWNERS coverage check use,
-// so widening the surface cannot silently drift from either.
+// `.github/CODEOWNERS` keeps a deliberately broader review set. `EXACT_PATHS` and
+// `PREFIX_SAMPLES` are derived from the sets themselves, so the tests and the
+// CODEOWNERS coverage check cannot drift from the surface they describe.
 // Netlify installs from whichever of these it finds (root or base directory), and
-// a lockfile or registry config decides what the installer downloads.
+// a lockfile or registry config decides what the installer downloads. The non-Node
+// manifests are inert for today's static build but are listed so a build command
+// that starts using them cannot silently become an ungated execution path.
 const DEPENDENCY_FILES = [
   'package.json',
   'package-lock.json',
   'yarn.lock',
   'pnpm-lock.yaml',
   '.npmrc',
+  '.yarnrc',
+  '.yarnrc.yml',
+  'bun.lock',
+  'bun.lockb',
+  'deno.json',
+  'deno.lock',
+  'composer.json',
+  'composer.lock',
+  'Gemfile',
+  'Gemfile.lock',
+  'requirements.txt',
+  'pyproject.toml',
+  'poetry.lock',
 ];
 
-export const privilegedBuildSurface = path =>
-  path === 'netlify.toml' ||
-  path === 'site/netlify.toml' ||
-  path.startsWith('scripts/') ||
-  path.startsWith('.github/workflows/') ||
-  DEPENDENCY_FILES.includes(path) ||
-  DEPENDENCY_FILES.map(name => `site/${name}`).includes(path);
+// The Console artifact lives under one directory plus one provenance manifest.
+// Every consumer derives from these two constants — the exemption predicate, the
+// privileged surface below, the trusted validator's extraction scope, and the
+// tests' corpus of positives and lookalike negatives — so widening the artifact
+// widens all of them in one edit. The quiet failure mode this prevents: a
+// publisher pull request touching only a newly admitted path would read
+// "Build surface unchanged." (the surface is evaluated before the exemption), so
+// the check would go green without any approval and without the validator ever
+// walking that path.
+export const CONSOLE_ARTIFACT_DIRECTORY = 'vendor/studio/';
+export const CONSOLE_MANIFEST = 'vendor/studio-build.json';
 
-export const PRIVILEGED_EXAMPLES = [
+// What the site ships as code rather than as text: the installers (run on the
+// visitor's machine) and the Console bundle with its provenance manifest (served
+// to the browser, published by automation). These are not executed by the build,
+// but a change to them changes what every visitor runs, so they need the same
+// maintainer approval. `site/*.html` is deliberately not here: a page is content
+// that changes through ordinary review, and inline script in it is not the
+// automated publication path this gate exists to control.
+//
+// `site/releases/**` (checked-in binaries) is not here either, and does not need
+// to be: `/releases/*` is redirected to releases.drive9.ai with `force = true` in
+// `site/netlify.toml`, so those files are unreachable in production. The redirect
+// is what protects them, and that file is in the surface.
+const PUBLISHED_CODE = [
+  'site/install.sh',
+  'site/install.ps1',
+  CONSOLE_MANIFEST,
+];
+
+// Imported by the approval exemption and by the trusted validator, so the two
+// halves of the exemption cannot disagree about which paths they cover.
+export const isConsoleArtifactPath = path =>
+  path.startsWith(CONSOLE_ARTIFACT_DIRECTORY) || path === CONSOLE_MANIFEST;
+
+// Precomputed once: this predicate runs over every changed path.
+const SITE_DEPENDENCY_FILES = DEPENDENCY_FILES.map(name => `site/${name}`);
+
+// Netlify deploys functions from the base directory without any configuration:
+// the defaults are `netlify/functions` and `netlify/edge-functions` resolved
+// against the base directory, which is `site` here. A pull request that drops a
+// file under either path gets code running in the deployed site, with the site's
+// environment, without touching any other privileged path — so those
+// directories are part of the surface. The repository-root variants are listed
+// too: they are the same defaults if the base directory ever becomes the root.
+const FUNCTION_DIRECTORIES = [
+  'netlify/functions',
+  'netlify/edge-functions',
+  'site/netlify/functions',
+  'site/netlify/edge-functions',
+];
+
+const DIRECTORY_PREFIXES = [
+  'scripts/',
+  '.github/workflows/',
+  CONSOLE_ARTIFACT_DIRECTORY,
+  ...FUNCTION_DIRECTORIES.map(directory => `${directory}/`),
+];
+
+const EXACT_PATHS = new Set([
   'netlify.toml',
   'site/netlify.toml',
-  'scripts/prepare-studio.mjs',
-  'scripts/netlify-ignore.mjs',
-  '.github/workflows/studio-publication.yml',
-  'package.json',
-  'package-lock.json',
-  'yarn.lock',
-  'pnpm-lock.yaml',
-  '.npmrc',
-  'site/package.json',
-  'site/package-lock.json',
-  'site/yarn.lock',
-  'site/pnpm-lock.yaml',
-  'site/.npmrc',
-];
+  ...PUBLISHED_CODE,
+  ...DEPENDENCY_FILES,
+  ...SITE_DEPENDENCY_FILES,
+]);
+
+export const privilegedBuildSurface = path =>
+  EXACT_PATHS.has(path) || DIRECTORY_PREFIXES.some(prefix => path.startsWith(prefix));
+
+// One sample per directory prefix, plus every exact path. The predicate test and
+// the CODEOWNERS coverage test both iterate this list, so a path added to any
+// canonical set is automatically pinned, and CODEOWNERS has to cover it too.
+const PREFIX_SAMPLES = DIRECTORY_PREFIXES.map(prefix => `${prefix}hello.mjs`);
+
+export const PRIVILEGED_EXAMPLES = [...PREFIX_SAMPLES, ...EXACT_PATHS];
 
 export const UNCHANGED = 'Build surface unchanged.';
 

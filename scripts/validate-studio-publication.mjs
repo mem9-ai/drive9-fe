@@ -6,9 +6,8 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { realpathSync } from 'node:fs';
 import { studioPublicFile, verifyStudioArtifact } from './studio-artifact.mjs';
+import { CONSOLE_ARTIFACT_DIRECTORY, CONSOLE_MANIFEST, isConsoleArtifactPath } from './build-surface.mjs';
 import { prepareStudio } from './prepare-studio.mjs';
-
-const artifactPath = path => path.startsWith('vendor/studio/') || path === 'vendor/studio-build.json';
 
 // Candidate Git objects are data only. All imports and the site template above/below
 // come from the trusted default-branch checkout, never from the PR tree.
@@ -25,24 +24,27 @@ export async function validateStudioPublication(repository, head, artifactOnly, 
   // Publishing an artifact is author-independent: a candidate that touches the
   // Console artifact may change nothing else, bot or human. Previously only bot
   // PRs were restricted, so a human PR could mix the artifact with arbitrary code.
-  if (artifactOnly || files.some(artifactPath)) {
-    assert.ok(files.every(artifactPath), 'Publication may change only Console artifacts and provenance.');
+  if (artifactOnly || files.some(isConsoleArtifactPath)) {
+    assert.ok(files.every(isConsoleArtifactPath), 'Publication may change only Console artifacts and provenance.');
   }
   const temporary = await mkdtemp(join(tmpdir(), 'studio-candidate-'));
   try {
-    const entries = git('ls-tree', '-rz', '--full-tree', head, '--', 'vendor/studio', 'vendor/studio-build.json').toString().split('\0').filter(Boolean);
+    // The extraction scope comes from the same constants the exemption uses, so a
+    // widened artifact cannot be validated here while being waved through there.
+    const artifactDirectory = CONSOLE_ARTIFACT_DIRECTORY.replace(/\/$/, '');
+    const entries = git('ls-tree', '-rz', '--full-tree', head, '--', artifactDirectory, CONSOLE_MANIFEST).toString().split('\0').filter(Boolean);
     for (const entry of entries) {
       const match = entry.match(/^100644 blob ([a-f0-9]{40})\t(.+)$/);
-      assert.ok(match && (match[2] === 'vendor/studio-build.json' ||
-        (match[2].startsWith('vendor/studio/') && studioPublicFile(match[2].slice('vendor/studio/'.length)))),
+      assert.ok(match && (match[2] === CONSOLE_MANIFEST ||
+        (match[2].startsWith(CONSOLE_ARTIFACT_DIRECTORY) && studioPublicFile(match[2].slice(CONSOLE_ARTIFACT_DIRECTORY.length)))),
       'Candidate contains an unexpected artifact path or Git mode.');
       const [, object, path] = match;
       const destination = join(temporary, path);
       await mkdir(dirname(destination), { recursive: true });
       await writeFile(destination, git('cat-file', 'blob', object));
     }
-    const consoleDirectory = join(temporary, 'vendor/studio');
-    await verifyStudioArtifact(consoleDirectory, join(temporary, 'vendor/studio-build.json'));
+    const consoleDirectory = join(temporary, artifactDirectory);
+    await verifyStudioArtifact(consoleDirectory, join(temporary, CONSOLE_MANIFEST));
     const siteDirectory = join(temporary, 'site');
     await cp(fileURLToPath(new URL('../site', import.meta.url)), siteDirectory, { recursive: true });
     await prepareStudio({ consoleDirectory, siteDirectory, apiOrigin: 'https://api.example.invalid' });

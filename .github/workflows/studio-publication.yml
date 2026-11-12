@@ -4,10 +4,10 @@ on:
   pull_request_target:
     branches: [main]
     types: [opened, synchronize, reopened]
-  # `pull_request_review` is added in a follow-up PR once the gate modules are on
-  # `main`: for that event the workflow file comes from the candidate head while
-  # the checkout is the trusted base, so a PR that introduces the modules cannot
-  # re-run itself on approval. Until then, re-run this workflow after approving.
+  # `pull_request_review` is deliberately absent: GitHub runs that event with the
+  # workflow file from the pull request head, and this workflow issues the
+  # required check, so a candidate could register a passing check on itself.
+  # After an approval, re-run this workflow (or push) to turn the check green.
 
 permissions:
   contents: read
@@ -55,11 +55,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          # Author identity as GitHub reports it, never the sender and never a
+          # branch name. `user.type` alone is too coarse — every installed GitHub
+          # App authors as `Bot` — so the exemption below also pins the publisher
+          # app's login, and still requires every changed path to be the artifact.
+          PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
+          PR_AUTHOR_LOGIN: ${{ github.event.pull_request.user.login }}
         run: |
           # Netlify executes this surface from the merged revision, so a change
           # to it changes code execution in the deploy environment. The decision
           # logic lives in scripts/publication-approval.mjs and
-          # scripts/build-surface.mjs so it is covered by tests.
+          # scripts/build-surface.mjs so it is covered by tests; the dispatch in
+          # this step is the one part tests cannot reach (tracked in #148).
           verified=0
           for attempt in 1 2; do
             gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" > "$RUNNER_TEMP/files.json"
@@ -90,6 +97,14 @@ jobs:
           esac
           echo "Build surface changed:"
           echo "$changed"
+          # The Console publisher app ships artifact-only releases; those keep
+          # merging without a human, exactly as they did before this gate
+          # covered them. Anything else needs a maintainer approval.
+          if node scripts/publication-approval.mjs bot-artifact \
+            --paths "$RUNNER_TEMP/changed-paths.txt" \
+            --author-type "$PR_AUTHOR_TYPE" --author-login "$PR_AUTHOR_LOGIN"; then
+            exit 0
+          fi
           gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews?per_page=100" > "$RUNNER_TEMP/reviews.json"
           node scripts/publication-approval.mjs approvals \
             --reviews "$RUNNER_TEMP/reviews.json" --head "$HEAD_SHA"
@@ -97,11 +112,11 @@ jobs:
         id: validate
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_BASE: ${{ github.event.pull_request.base.sha }}
-          # Bot-authored PRs are artifact-only. `sender` is deliberately not
-          # consulted: with a review trigger it is the reviewer, not the author,
-          # so a bot review would force artifact-only validation on human PRs.
-          ARTIFACT_ONLY: ${{ github.event.pull_request.user.type == 'Bot' || github.head_ref == 'automation/studio-console' }}
+          # Artifact-only validation uses the same identity story as the approval
+          # exemption: the publisher app itself, plus the branch name the
+          # publisher uses (a candidate picking that name only makes validation
+          # stricter). `sender` is deliberately not consulted.
+          ARTIFACT_ONLY: ${{ github.event.pull_request.user.login == 'mem9-studio-publisher[bot]' || github.head_ref == 'automation/studio-console' }}
         run: node scripts/validate-studio-publication.mjs "$HEAD_SHA" "$ARTIFACT_ONLY" "$RUNNER_TEMP/changed-paths.txt"
       - name: Report the required result on that same head
         if: always() && steps.check.outputs.id != ''
