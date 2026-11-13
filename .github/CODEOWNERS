@@ -4,11 +4,11 @@
 #
 # Deliberately coarse: one rule per privileged area. The enforced path list lives
 # in scripts/build-surface.mjs and is what the workflow actually checks.
-/.github/           @qiffang @srstack
-/scripts/           @qiffang @srstack
-/site/              @qiffang @srstack
-/netlify.toml       @qiffang @srstack
-/netlify/           @qiffang @srstack
-/vendor/            @qiffang @srstack
-/package.json       @qiffang @srstack
-/package-lock.json  @qiffang @srstack
+/.github/           @qiffang @srstack @mornyx @mashenjun
+/scripts/           @qiffang @srstack @mornyx @mashenjun
+/site/              @qiffang @srstack @mornyx @mashenjun
+/netlify.toml       @qiffang @srstack @mornyx @mashenjun
+/netlify/           @qiffang @srstack @mornyx @mashenjun
+/vendor/            @qiffang @srstack @mornyx @mashenjun
+/package.json       @qiffang @srstack @mornyx @mashenjun
+/package-lock.json  @qiffang @srstack @mornyx @mashenjun
