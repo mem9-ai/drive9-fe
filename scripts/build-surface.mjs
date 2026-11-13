@@ -5,9 +5,9 @@
 // any of these changes code execution in the deploy environment. This module is
 // the single source for the gate in `.github/workflows/studio-publication.yml`.
 //
-// `.github/CODEOWNERS` keeps a deliberately broader review set. `EXACT_PATHS` and
-// `PREFIX_SAMPLES` are derived from the sets themselves, so the tests and the
-// CODEOWNERS coverage check cannot drift from the surface they describe.
+// `.github/CODEOWNERS` is coarse on purpose: it drives review requests, while this
+// list is what the workflow enforces. `EXACT_PATHS` and `PREFIX_SAMPLES` are derived
+// from the sets themselves, so the tests cannot drift from the surface.
 // Netlify installs from whichever of these it finds (root or base directory), and
 // a lockfile or registry config decides what the installer downloads. The non-Node
 // manifests are inert for today's static build but are listed so a build command
@@ -52,9 +52,16 @@ export const CONSOLE_SIGNATURE = 'vendor/studio-build.json.sig';
 // visitor's machine) and the Console bundle with its provenance manifest (served
 // to the browser, published by automation). These are not executed by the build,
 // but a change to them changes what every visitor runs, so they need the same
-// maintainer approval. `site/*.html` is deliberately not here: a page is content
-// that changes through ordinary review, and inline script in it is not the
-// automated publication path this gate exists to control.
+// maintainer approval.
+//
+// None of the site's published files is inert content: `site/*.html` can carry
+// inline script, `skill.md` is a set of instructions an agent follows,
+// `site/manifest/**` tells the CLI which endpoints and regions to trust, and
+// `site/_headers` decides which origins may read the credentialed responses
+// served beside it. Each decides what visitors and agents execute or may read, so
+// each carries the same approval requirement. Pages match by pattern, so a page
+// added later is gated without editing this file, and a test walks `site/` so an
+// unlisted page cannot slip through.
 //
 // `site/releases/**` (checked-in binaries) is not here either, and does not need
 // to be: `/releases/*` is redirected to releases.drive9.ai with `force = true` in
@@ -63,9 +70,23 @@ export const CONSOLE_SIGNATURE = 'vendor/studio-build.json.sig';
 const PUBLISHED_CODE = [
   'site/install.sh',
   'site/install.ps1',
+  'site/skill.md',
+  'site/_headers',
   CONSOLE_MANIFEST,
   CONSOLE_SIGNATURE,
 ];
+
+// Pages are gated by pattern; this list keeps the example test honest about the
+// pages that exist today.
+const PUBLIC_PAGES = [
+  'site/index.html',
+  'site/sdk.html',
+  'site/security.html',
+  'site/faq.html',
+  'site/changelog.html',
+];
+
+export const isPublicPage = path => /^site\/[^/]+\.html$/.test(path);
 
 // Imported by the approval exemption and by the trusted validator, so the two
 // halves of the exemption cannot disagree about which paths they cover.
@@ -93,6 +114,7 @@ const DIRECTORY_PREFIXES = [
   'scripts/',
   '.github/workflows/',
   CONSOLE_ARTIFACT_DIRECTORY,
+  'site/manifest/',
   ...FUNCTION_DIRECTORIES.map(directory => `${directory}/`),
 ];
 
@@ -105,14 +127,15 @@ const EXACT_PATHS = new Set([
 ]);
 
 export const privilegedBuildSurface = path =>
-  EXACT_PATHS.has(path) || DIRECTORY_PREFIXES.some(prefix => path.startsWith(prefix));
+  EXACT_PATHS.has(path) ||
+  isPublicPage(path) ||
+  DIRECTORY_PREFIXES.some(prefix => path.startsWith(prefix));
 
-// One sample per directory prefix, plus every exact path. The predicate test and
-// the CODEOWNERS coverage test both iterate this list, so a path added to any
-// canonical set is automatically pinned, and CODEOWNERS has to cover it too.
+// One sample per directory prefix, plus every exact path and page. The predicate
+// test iterates this list, so a path added to any canonical set is pinned.
 const PREFIX_SAMPLES = DIRECTORY_PREFIXES.map(prefix => `${prefix}hello.mjs`);
 
-export const PRIVILEGED_EXAMPLES = [...PREFIX_SAMPLES, ...EXACT_PATHS];
+export const PRIVILEGED_EXAMPLES = [...PREFIX_SAMPLES, ...PUBLIC_PAGES, ...EXACT_PATHS];
 
 export const UNCHANGED = 'Build surface unchanged.';
 

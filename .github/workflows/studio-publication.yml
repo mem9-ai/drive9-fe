@@ -78,10 +78,14 @@ jobs:
             # inputs: a content-only PR now depends on this third read succeeding,
             # which fails closed and is recovered by the attempt loop.
             gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews?per_page=100" > "$RUNNER_TEMP/reviews.json"
+            # Approver authorization comes from GitHub's own permission model:
+            # write access is the bar, and author_association alone is too weak.
+            gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/collaborators?affiliation=all&per_page=100" > "$RUNNER_TEMP/collaborators.json"
             set +e
             node scripts/publication-approval.mjs gate \
               --files "$RUNNER_TEMP/files.json" --pull "$RUNNER_TEMP/pull.json" \
-              --reviews "$RUNNER_TEMP/reviews.json" --head "$HEAD_SHA" \
+              --reviews "$RUNNER_TEMP/reviews.json" --collaborators "$RUNNER_TEMP/collaborators.json" \
+              --head "$HEAD_SHA" \
               --author-type "$PR_AUTHOR_TYPE" --author-login "$PR_AUTHOR_LOGIN" \
               --paths-out "$RUNNER_TEMP/changed-paths.txt"
             status=$?
@@ -98,10 +102,9 @@ jobs:
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           # Artifact-only validation uses the same identity story as the approval
-          # exemption: the publisher app itself, plus the branch name the
-          # publisher uses (a candidate picking that name only makes validation
-          # stricter). `sender` is deliberately not consulted.
-          ARTIFACT_ONLY: ${{ github.event.pull_request.user.login == 'mem9-studio-publisher[bot]' || github.head_ref == 'automation/studio-console' }}
+          # exemption: the publisher app's server-assigned login, nothing else.
+          # `sender` and the branch name are deliberately not consulted.
+          ARTIFACT_ONLY: ${{ github.event.pull_request.user.login == 'mem9-studio-publisher[bot]' }}
         run: node scripts/validate-studio-publication.mjs "$HEAD_SHA" "$ARTIFACT_ONLY" "$RUNNER_TEMP/changed-paths.txt"
       - name: Report the required result on that same head
         if: always() && steps.check.outputs.id != ''
