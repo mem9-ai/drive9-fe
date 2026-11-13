@@ -1,5 +1,6 @@
 import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { changedSurface, isConsoleArtifactPath, UNCHANGED } from './build-surface.mjs';
+import { signatureConfigured } from './studio-signature.mjs';
 
 // Trusted decisions for the Studio publication gate. This logic used to live as
 // inline jq in `.github/workflows/studio-publication.yml`, where no test could
@@ -12,10 +13,19 @@ const readJson = path => JSON.parse(readFileSync(path, 'utf8'));
 // `gh api --paginate --slurp` returns one array per page; flatten it.
 export const flattenPages = value => (Array.isArray(value) ? value.flat() : []);
 
+// A reviewer only counts if GitHub reports push access on this repository.
+// `author_association` alone is too weak: it says MEMBER for anyone in the owning
+// organization (who may have no access to this repository at all) and
+// COLLABORATOR for invited read-only users, so a review from an outsider would
+// satisfy the gate. `permissions` comes from the collaborators listing, which is
+// the same source GitHub uses for write decisions; a login missing from it fails
+// closed.
+export const canReviewPublications = permissions => permissions === true;
+
 // Logins whose latest state-carrying review approves this exact head. An
 // ordinary comment after an approval does not revoke it, an approval of an
 // earlier commit does not count, and only repository maintainers qualify.
-export function approvedLogins(reviews, head) {
+export function approvedLogins(reviews, head, permissions = {}) {
   const latest = new Map();
   for (const review of flattenPages(reviews)) {
     if (!review || !review.user || typeof review.user.login !== 'string') continue;
@@ -29,7 +39,8 @@ export function approvedLogins(reviews, head) {
     .filter(review =>
       review.state === 'APPROVED' &&
       review.commit_id === head &&
-      ASSOCIATIONS.has(review.author_association))
+      ASSOCIATIONS.has(review.author_association) &&
+      canReviewPublications(permissions[review.user.login]))
     .map(review => review.user.login)
     .sort();
 }
@@ -50,8 +61,12 @@ export function approvedLogins(reviews, head) {
 // artifact, which makes it impossible to smuggle code in with a release.
 export const CONSOLE_PUBLISHER_LOGIN = 'mem9-studio-publisher[bot]';
 
-export function botArtifactOnlyPublication(paths, authorType, authorLogin) {
-  return authorType === 'Bot' &&
+// An exemption is only available once the publication can be checked for
+// provenance: without a pinned signing key the artifact is unverifiable, so a
+// release needs a human approval instead of riding on the app identity alone.
+export function botArtifactOnlyPublication(paths, authorType, authorLogin, signed = signatureConfigured()) {
+  return signed &&
+    authorType === 'Bot' &&
     authorLogin === CONSOLE_PUBLISHER_LOGIN &&
     paths.length > 0 &&
     paths.every(path => isConsoleArtifactPath(path));
@@ -89,10 +104,25 @@ export function changedPaths(files, pull, head) {
 // A stale head, a truncated listing or malformed pull metadata is an expected
 // condition, not an exception: `gate` returns `unverifiable` with the reason, so
 // a programmatic caller never has to catch to learn "retry".
+// `signed` is injectable for tests only; production omits it so the exemption
+// follows whatever signing key is pinned in the trusted checkout.
+//
+// Collaborators arrive as the paginated REST listing; keep only the logins GitHub
+// reports as able to push, which is the set that may approve a publication.
+export function permissionMap(collaborators) {
+  const map = {};
+  for (const entry of flattenPages(collaborators)) {
+    if (!entry || typeof entry.login !== 'string' || !entry.permissions) continue;
+    const { admin, maintain, push } = entry.permissions;
+    if (admin === true || maintain === true || push === true) map[entry.login] = true;
+  }
+  return map;
+}
+
 // `paths` is the full changed-file list, not just the privileged subset: the
 // validation step consumes it to prove an artifact publication changed nothing
 // else, and it must not be reconstructed from a second definition of "changed".
-export function gate({ files, pull, reviews, head, authorType, authorLogin }) {
+export function gate({ files, pull, reviews, collaborators, head, authorType, authorLogin, signed }) {
   let paths;
   try {
     paths = changedPaths(files, pull, head);
@@ -101,10 +131,10 @@ export function gate({ files, pull, reviews, head, authorType, authorLogin }) {
   }
   const changed = changedSurface(paths);
   if (changed.length === 0) return { outcome: 'unchanged', paths, changed, approved: [] };
-  if (botArtifactOnlyPublication(paths, authorType, authorLogin)) {
+  if (botArtifactOnlyPublication(paths, authorType, authorLogin, signed)) {
     return { outcome: 'exempt', paths, changed, approved: [] };
   }
-  const approved = approvedLogins(reviews, head);
+  const approved = approvedLogins(reviews, head, permissionMap(collaborators));
   return { outcome: approved.length === 0 ? 'approval' : 'approved', paths, changed, approved };
 }
 
@@ -130,8 +160,8 @@ const option = (args, name) => {
 if (invokedDirectly()) {
   const [command, ...args] = process.argv.slice(2);
   if (command !== 'gate') {
-    console.error('usage: publication-approval.mjs gate --files F --pull P --reviews R --head SHA '
-      + '--author-type T --author-login LOGIN [--paths-out F]');
+    console.error('usage: publication-approval.mjs gate --files F --pull P --reviews R '
+      + '--collaborators C --head SHA --author-type T --author-login LOGIN [--paths-out F]');
     process.exitCode = 2;
   } else {
     try {
@@ -139,6 +169,9 @@ if (invokedDirectly()) {
         files: readJson(option(args, '--files')),
         pull: readJson(option(args, '--pull')),
         reviews: readJson(option(args, '--reviews')),
+        // Missing collaborator data is not an error: it simply yields no eligible
+        // approver, which fails closed on the approval branch.
+        collaborators: option(args, '--collaborators') ? readJson(option(args, '--collaborators')) : [],
         head: option(args, '--head'),
         authorType: option(args, '--author-type'),
         authorLogin: option(args, '--author-login'),

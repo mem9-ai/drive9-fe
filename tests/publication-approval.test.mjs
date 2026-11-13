@@ -7,9 +7,10 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { approvedLogins, botArtifactOnlyPublication, changedPaths, gate } from '../scripts/publication-approval.mjs';
+import { approvedLogins, botArtifactOnlyPublication, changedPaths, gate, permissionMap } from '../scripts/publication-approval.mjs';
 
 const HEAD = 'a'.repeat(40);
+const WRITE = { mornyx: true, qiffang: true };
 const review = (login, state, commit = HEAD, at = '2026-11-10T10:00:00Z', association = 'MEMBER') => ({
   user: login === null ? null : { login },
   state,
@@ -18,12 +19,30 @@ const review = (login, state, commit = HEAD, at = '2026-11-10T10:00:00Z', associ
   author_association: association,
 });
 
-test('only a maintainer approval of this exact head counts', () => {
-  assert.deepEqual(approvedLogins([review('mornyx', 'APPROVED')], HEAD), ['mornyx']);
-  assert.deepEqual(approvedLogins([review('mornyx', 'APPROVED', 'b'.repeat(40))], HEAD), []);
-  assert.deepEqual(approvedLogins([review('outsider', 'APPROVED', HEAD, '2026-11-10T10:00:00Z', 'CONTRIBUTOR')], HEAD), []);
-  assert.deepEqual(approvedLogins([review('mornyx', 'CHANGES_REQUESTED')], HEAD), []);
-  assert.deepEqual(approvedLogins([], HEAD), []);
+test('only a maintainer with write access approving this exact head counts', () => {
+  assert.deepEqual(approvedLogins([review('mornyx', 'APPROVED')], HEAD, WRITE), ['mornyx']);
+  assert.deepEqual(approvedLogins([review('mornyx', 'APPROVED', 'b'.repeat(40))], HEAD, WRITE), []);
+  assert.deepEqual(approvedLogins([review('outsider', 'APPROVED', HEAD, '2026-11-10T10:00:00Z', 'CONTRIBUTOR')], HEAD, WRITE), []);
+  assert.deepEqual(approvedLogins([review('mornyx', 'CHANGES_REQUESTED')], HEAD, WRITE), []);
+  assert.deepEqual(approvedLogins([], HEAD, WRITE), []);
+  // author_association is not authorization: an org member (MEMBER) or a
+  // read-only collaborator (COLLABORATOR) without push access cannot approve.
+  assert.deepEqual(approvedLogins([review('member-only', 'APPROVED')], HEAD, WRITE), []);
+  assert.deepEqual(approvedLogins([review('readonly', 'APPROVED', HEAD, '2026-11-10T10:00:00Z', 'COLLABORATOR')], HEAD, WRITE), []);
+  // Missing permission data fails closed.
+  assert.deepEqual(approvedLogins([review('mornyx', 'APPROVED')], HEAD), []);
+});
+
+test('collaborator permissions map only push-capable logins', () => {
+  const pages = [[
+    { login: 'admin', permissions: { admin: true, maintain: true, push: true } },
+    { login: 'maint', permissions: { admin: false, maintain: true, push: true } },
+    { login: 'writer', permissions: { admin: false, maintain: false, push: true } },
+    { login: 'readonly', permissions: { admin: false, maintain: false, push: false } },
+    { login: 'triage', permissions: { admin: false, maintain: false, push: false, triage: true } },
+    { login: 'no-permissions-field' },
+  ]];
+  assert.deepEqual(permissionMap(pages), { admin: true, maint: true, writer: true });
 });
 
 test('a comment after an approval does not revoke it', () => {
@@ -31,7 +50,7 @@ test('a comment after an approval does not revoke it', () => {
     review('mornyx', 'APPROVED', HEAD, '2026-11-10T10:00:00Z'),
     review('mornyx', 'COMMENTED', HEAD, '2026-11-10T11:00:00Z'),
   ];
-  assert.deepEqual(approvedLogins(reviews, HEAD), ['mornyx']);
+  assert.deepEqual(approvedLogins(reviews, HEAD, WRITE), ['mornyx']);
 });
 
 test('approve then request changes revokes the approval', () => {
@@ -65,7 +84,7 @@ test('paginated page arrays and null users are handled', () => {
     [review(null, 'APPROVED')],
     [review('qiffang', 'COMMENTED', HEAD, '2026-11-10T09:00:00Z'), review('qiffang', 'APPROVED', HEAD, '2026-11-10T10:00:00Z')],
   ];
-  assert.deepEqual(approvedLogins(reviews, HEAD), ['qiffang']);
+  assert.deepEqual(approvedLogins(reviews, HEAD, WRITE), ['qiffang']);
 });
 
 test('changed paths include both sides of a rename and require a complete list', () => {
@@ -87,22 +106,24 @@ test('the gate decides every outcome and tells the caller when to retry', async 
   const files = join(directory, 'files.json');
   const pull = join(directory, 'pull.json');
   const reviews = join(directory, 'reviews.json');
-  await writeFile(reviews, JSON.stringify([review('mornyx', 'APPROVED')]));
   const pathsOut = join(directory, 'changed-paths.txt');
+  const collaborators = join(directory, 'collaborators.json');
+  await writeFile(reviews, JSON.stringify([review('mornyx', 'APPROVED')]));
+  await writeFile(collaborators, JSON.stringify([[{ login: 'mornyx', permissions: { push: true, maintain: false, admin: false } }]]));
   const run = async (changeFiles, { authorType = 'User', authorLogin = 'srstack', head = HEAD, pullHead = HEAD, reviewsPath = reviews } = {}) => {
     await writeFile(files, JSON.stringify([changeFiles.map(filename => ({ filename }))]));
     await writeFile(pull, JSON.stringify({ changed_files: changeFiles.length, head: { sha: pullHead } }));
     return spawnSync(process.execPath, [cli, 'gate', '--files', files, '--pull', pull, '--reviews', reviewsPath,
-      '--head', head, '--author-type', authorType, '--author-login', authorLogin,
+      '--collaborators', collaborators, '--head', head, '--author-type', authorType, '--author-login', authorLogin,
       '--paths-out', pathsOut], { encoding: 'utf8' });
   };
 
   // Nothing privileged changed: pass without looking at reviews, and still hand
   // the validation step the full changed-file list.
-  const unchanged = await run(['site/index.html']);
+  const unchanged = await run(['site/styles.css']);
   assert.equal(unchanged.status, 0);
   assert.equal(unchanged.stdout.trim(), 'Build surface unchanged.');
-  assert.equal(await readFile(pathsOut, 'utf8'), 'site/index.html\n');
+  assert.equal(await readFile(pathsOut, 'utf8'), 'site/styles.css\n');
 
   // Privileged change with an approval on this head: pass.
   const approved = await run(['scripts/build-surface.mjs']);
@@ -113,19 +134,33 @@ test('the gate decides every outcome and tells the caller when to retry', async 
   const none = join(directory, 'empty.json');
   await writeFile(none, '[]');
   const rejected = spawnSync(process.execPath, [cli, 'gate', '--files', files, '--pull', pull,
-    '--reviews', none, '--head', HEAD,
+    '--reviews', none, '--collaborators', collaborators, '--head', HEAD,
     '--author-type', 'User', '--author-login', 'srstack'], { encoding: 'utf8' });
   assert.equal(rejected.status, 1);
   assert.match(rejected.stderr, /needs an approving review/);
   assert.match(rejected.stderr, /does not re-run this check automatically/);
 
-  // Publisher app shipping only the artifact: pass without an approval, and the
-  // list written for validation keeps every path, not just the privileged ones.
-  const exempt = await run(['vendor/studio/index.html', 'vendor/studio-build.json'],
-    { authorType: 'Bot', authorLogin: 'mem9-studio-publisher[bot]' });
-  assert.equal(exempt.status, 0);
-  assert.match(exempt.stdout, /maintainer approval is not required/);
-  assert.equal(await readFile(pathsOut, 'utf8'), 'vendor/studio/index.html\nvendor/studio-build.json\n');
+  // Publisher app shipping only the artifact, but no pinned signing key: the
+  // exemption is not available, so this needs an approval (fail closed).
+  const unsignedPublisher = await run(['vendor/studio/index.html', 'vendor/studio-build.json'],
+    { authorType: 'Bot', authorLogin: 'mem9-studio-publisher[bot]', reviewsPath: none });
+  assert.equal(unsignedPublisher.status, 1);
+  assert.match(unsignedPublisher.stderr, /needs an approving review/);
+
+  // With provenance available the gate exempts it, and the list written for the
+  // validator keeps every path, not just the privileged ones.
+  const exempt = gate({
+    files: [[{ filename: 'vendor/studio/index.html' }, { filename: 'vendor/studio-build.json' }]],
+    pull: { changed_files: 2, head: { sha: HEAD } },
+    reviews: [],
+    collaborators: [[{ login: 'mornyx', permissions: { push: true } }]],
+    head: HEAD,
+    authorType: 'Bot',
+    authorLogin: 'mem9-studio-publisher[bot]',
+    signed: true,
+  });
+  assert.equal(exempt.outcome, 'exempt');
+  assert.deepEqual(exempt.paths, ['vendor/studio/index.html', 'vendor/studio-build.json']);
 
   // The same files from any other app, or mixed with code: approval required.
   const otherApp = await run(['vendor/studio/index.html'], { authorType: 'Bot', authorLogin: 'dependabot[bot]', reviewsPath: none });
@@ -143,7 +178,8 @@ test('the gate decides every outcome and tells the caller when to retry', async 
   await writeFile(files, JSON.stringify([[{ filename: 'scripts/build-surface.mjs' }]]));
   await writeFile(pull, JSON.stringify({ changed_files: 2, head: { sha: HEAD } }));
   const truncated = spawnSync(process.execPath, [cli, 'gate', '--files', files, '--pull', pull, '--reviews', reviews,
-    '--head', HEAD, '--author-type', 'User', '--author-login', 'srstack'], { encoding: 'utf8' });
+    '--collaborators', collaborators, '--head', HEAD, '--author-type', 'User', '--author-login', 'srstack'],
+  { encoding: 'utf8' });
   assert.equal(truncated.status, 3);
   assert.match(truncated.stderr, /Cannot verify every changed file/);
 
@@ -178,22 +214,25 @@ test('the workflow keeps only fetching and one gate invocation', () => {
 
 test('only the publisher app publishing nothing but the artifact skips the approval requirement', () => {
   const artifact = ['vendor/studio/index.html', 'vendor/studio-build.json'];
-  assert.equal(botArtifactOnlyPublication(artifact, 'Bot', 'mem9-studio-publisher[bot]'), true);
+  // The exemption is unlocked by provenance: with no pinned signing key the
+  // artifact cannot be verified, so a release needs a human approval instead.
+  assert.equal(botArtifactOnlyPublication(artifact, 'Bot', 'mem9-studio-publisher[bot]', false), false);
+  assert.equal(botArtifactOnlyPublication(artifact, 'Bot', 'mem9-studio-publisher[bot]', true), true);
   // "Bot" is not a principal: every installed GitHub App authors as `Bot`.
   for (const login of ['dependabot[bot]', 'github-actions[bot]', 'renovate[bot]', 'app/mem9-studio-publisher', 'mem9-studio-publisher', 'mem9-studio-publisher[bot] ']) {
-    assert.equal(botArtifactOnlyPublication(artifact, 'Bot', login), false, login);
+    assert.equal(botArtifactOnlyPublication(artifact, 'Bot', login, true), false, login);
   }
-  assert.equal(botArtifactOnlyPublication(artifact, 'Bot', undefined), false);
-  assert.equal(botArtifactOnlyPublication(artifact, 'User', 'mem9-studio-publisher[bot]'), false);
+  assert.equal(botArtifactOnlyPublication(artifact, 'Bot', undefined, true), false);
+  assert.equal(botArtifactOnlyPublication(artifact, 'User', 'mem9-studio-publisher[bot]', true), false);
   // Mixing one line of code into a release disqualifies it.
-  assert.equal(botArtifactOnlyPublication([...artifact, 'scripts/prepare-studio.mjs'], 'Bot', 'mem9-studio-publisher[bot]'), false);
-  assert.equal(botArtifactOnlyPublication([...artifact, 'netlify.toml'], 'Bot', 'mem9-studio-publisher[bot]'), false);
+  assert.equal(botArtifactOnlyPublication([...artifact, 'scripts/prepare-studio.mjs'], 'Bot', 'mem9-studio-publisher[bot]', true), false);
+  assert.equal(botArtifactOnlyPublication([...artifact, 'netlify.toml'], 'Bot', 'mem9-studio-publisher[bot]', true), false);
   // A human PR is never exempt, even when it only touches the artifact.
-  assert.equal(botArtifactOnlyPublication(artifact, 'User', 'srstack'), false);
-  assert.equal(botArtifactOnlyPublication(artifact, 'Organization', 'mem9-ai'), false);
-  assert.equal(botArtifactOnlyPublication(artifact, 'bot', 'mem9-studio-publisher[bot]'), false);
+  assert.equal(botArtifactOnlyPublication(artifact, 'User', 'srstack', true), false);
+  assert.equal(botArtifactOnlyPublication(artifact, 'Organization', 'mem9-ai', true), false);
+  assert.equal(botArtifactOnlyPublication(artifact, 'bot', 'mem9-studio-publisher[bot]', true), false);
   // Prefix lookalikes are not the artifact directory.
-  assert.equal(botArtifactOnlyPublication(['vendor/studio-evil/index.html'], 'Bot', 'mem9-studio-publisher[bot]'), false);
-  assert.equal(botArtifactOnlyPublication(['vendor/studio'], 'Bot', 'mem9-studio-publisher[bot]'), false);
-  assert.equal(botArtifactOnlyPublication([], 'Bot', 'mem9-studio-publisher[bot]'), false);
+  assert.equal(botArtifactOnlyPublication(['vendor/studio-evil/index.html'], 'Bot', 'mem9-studio-publisher[bot]', true), false);
+  assert.equal(botArtifactOnlyPublication(['vendor/studio'], 'Bot', 'mem9-studio-publisher[bot]', true), false);
+  assert.equal(botArtifactOnlyPublication([], 'Bot', 'mem9-studio-publisher[bot]', true), false);
 });

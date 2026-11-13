@@ -13,6 +13,15 @@
 /site/netlify/edge-functions/  @qiffang @srstack
 /site/install.sh            @qiffang @srstack
 /site/install.ps1           @qiffang @srstack
+# The pages, the agent skill document and the published manifest decide what
+# visitors and agents execute, so they follow the same rule as the installers.
+/site/index.html            @qiffang @srstack
+/site/sdk.html              @qiffang @srstack
+/site/security.html         @qiffang @srstack
+/site/faq.html              @qiffang @srstack
+/site/changelog.html        @qiffang @srstack
+/site/skill.md              @qiffang @srstack
+/site/manifest/             @qiffang @srstack
 /site/package.json          @qiffang @srstack
 /site/package-lock.json     @qiffang @srstack
 /package.json               @qiffang @srstack
