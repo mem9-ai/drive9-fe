@@ -8,7 +8,7 @@ import { validateStudioPublication } from '../scripts/validate-studio-publicatio
 import { studioHashes } from '../scripts/studio-artifact.mjs';
 import { signManifest } from '../scripts/studio-signature.mjs';
 
-async function fixture(t) {
+async function fixture(t, { signWith } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'studio-pr-gate-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const git = (...args) => execFileSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', ...args], { cwd: directory, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
@@ -16,8 +16,15 @@ async function fixture(t) {
   await cp(new URL('../vendor', import.meta.url), join(directory, 'vendor'), { recursive: true });
   // Rollout independence: once the publisher signs, the checkout this fixture
   // copies already carries vendor/studio-build.json.sig. Every fixture starts
-  // from a known-unsigned tree; the tests that need a signature write their own.
+  // from a known state; the tests that need a signature write their own.
   await rm(join(directory, 'vendor/studio-build.json.sig'), { force: true });
+  if (signWith) {
+    // A baseline that already carries a signature, as `main` does once #153 lands.
+    await writeFile(
+      join(directory, 'vendor/studio-build.json.sig'),
+      signManifest(await readFile(join(directory, 'vendor/studio-build.json')), signWith),
+    );
+  }
   await mkdir(join(directory, '.github/workflows'), { recursive: true });
   await mkdir(join(directory, 'scripts'));
   for (const path of ['.github/workflows/studio-publication.yml', 'scripts/validate-studio-publication.mjs']) {
@@ -44,7 +51,10 @@ async function fixture(t) {
   // while that pin is empty. Tests that exercise verification pass a key.
   const gate = async (only = true, publicKey = '') =>
     validateStudioPublication(directory, git('rev-parse', 'HEAD'), only, await changedList(), publicKey);
-  return { directory, git, commit, baseline, gate, changedList };
+  // The production path: no key argument, so the pinned constant is used.
+  const gateDefault = async (only = true) =>
+    validateStudioPublication(directory, git('rev-parse', 'HEAD'), only, await changedList());
+  return { directory, git, commit, baseline, gate, gateDefault, changedList };
 }
 
 test('trusted validator accepts artifacts and rejects empty, unrelated and renamed paths', async t => {
@@ -202,4 +212,33 @@ test('a pinned publisher key makes the manifest signature mandatory (#147)', asy
   commit();
   await gate(true);
   git('reset', '--hard', 'HEAD');
+});
+
+test('a non-artifact change passes against a signed baseline with a pinned key (#147 activation)', async t => {
+  const { generateKeyPairSync } = await import('node:crypto');
+  const pair = generateKeyPairSync('ed25519');
+  const pinned = pair.publicKey.export({ type: 'spki', format: 'pem' });
+  // main's baseline carries a signature (see #153), so an unrelated change
+  // inherits a valid artifact and must not be dragged into the signature rules.
+  const { directory, commit, gate } = await fixture(t, { signWith: pair.privateKey });
+  await writeFile(join(directory, 'README.md'), 'documentation only\n');
+  commit();
+  await gate(false, pinned);
+});
+
+test('the production default pin is consulted when the caller supplies no key', async t => {
+  const { generateKeyPairSync } = await import('node:crypto');
+  const { signatureConfigured } = await import('../scripts/studio-signature.mjs');
+  const other = generateKeyPairSync('ed25519');
+  const { directory, commit, gateDefault } = await fixture(t, { signWith: other.privateKey });
+  await writeFile(join(directory, 'README.md'), 'change\n');
+  commit();
+  // No key argument: the workflow/CLI path, which resolves the pinned constant.
+  // With a pin it must reject a signature from any other key; with the rollback
+  // (empty pin) the signature is not consulted at all.
+  if (signatureConfigured()) {
+    await assert.rejects(gateDefault(false), /does not match the pinned publisher key/);
+  } else {
+    await gateDefault(false);
+  }
 });
