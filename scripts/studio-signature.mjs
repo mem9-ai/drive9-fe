@@ -10,12 +10,17 @@ import { sign, verify } from 'node:crypto';
 // produced by the publish pipeline and checked against a key pinned here.
 //
 // The pin below is the Ed25519 public key of the publisher pipeline; the private
-// half lives in mem9-ai/tidb-agentspace as STUDIO_ARTIFACT_SIGNING_KEY. Rotation
-// is two steps and has no dependency on a release: replace that secret with a new
-// private key, paste its public half here, and the next publication is signed and
-// verified with the new key. While no key is pinned the gate behaves as it did
-// before #147 existed, so a broken signing step degrades provenance instead of
-// stopping publication.
+// half lives in mem9-ai/tidb-agentspace as STUDIO_ARTIFACT_SIGNING_KEY. While a
+// key is pinned, every publication must carry a signature that verifies against
+// it: a missing, empty or mismatching signature stops the gate rather than
+// shipping unverified bytes, which is why a broken signing step stops publication
+// instead of degrading quietly.
+//
+// Rotation has no dependency on a release: replace that secret with a new private
+// key and paste its public half here; anything signed with the old key then fails
+// closed until the next publication is signed with the new one. Emptying this
+// constant is the rollback, and it restores the pre-#147 behaviour where only the
+// publisher app's identity was checked.
 
 export const MANIFEST_SIGNATURE_PATH = 'vendor/studio-build.json.sig';
 
