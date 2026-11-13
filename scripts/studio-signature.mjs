@@ -9,14 +9,20 @@ import { sign, verify } from 'node:crypto';
 // missing half — a detached Ed25519 signature over the exact manifest bytes,
 // produced by the publish pipeline and checked against a key pinned here.
 //
-// The pin is empty until the pipeline signs (see #147). While it is empty the
-// gate behaves exactly as before, so landing this module cannot break a release.
-// Provisioning is two steps: store the private key as STUDIO_ARTIFACT_SIGNING_KEY
-// in the publishing repository's secrets, and paste the matching public key here.
+// The pin below is the Ed25519 public key of the publisher pipeline; the private
+// half lives in mem9-ai/tidb-agentspace as STUDIO_ARTIFACT_SIGNING_KEY. Rotation
+// is two steps and has no dependency on a release: replace that secret with a new
+// private key, paste its public half here, and the next publication is signed and
+// verified with the new key. While no key is pinned the gate behaves as it did
+// before #147 existed, so a broken signing step degrades provenance instead of
+// stopping publication.
 
 export const MANIFEST_SIGNATURE_PATH = 'vendor/studio-build.json.sig';
 
-export const PINNED_PUBLIC_KEY = '';
+export const PINNED_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEADa5R3rw/YMYfBtLrA6HvmQFmxK6CerX+zdk+nh/OrNs=
+-----END PUBLIC KEY-----
+`;
 
 export const signatureConfigured = (publicKey = PINNED_PUBLIC_KEY) => publicKey.trim() !== '';
 
