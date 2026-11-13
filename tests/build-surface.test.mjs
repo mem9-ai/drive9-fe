@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import test from 'node:test';
 import {
   CONSOLE_ARTIFACT_DIRECTORY,
@@ -11,11 +11,20 @@ import {
   UNCHANGED,
 } from '../scripts/build-surface.mjs';
 
+const codeOwners = () => readFileSync(new URL('../.github/CODEOWNERS', import.meta.url), 'utf8')
+  .split('\n')
+  .map(line => line.trim())
+  .filter(line => line && !line.startsWith('#'))
+  .map(line => line.split(/\s+/)[0].replace(/^\//, ''));
+
+const covers = (entries, path) => entries.some(pattern =>
+  pattern.endsWith('/') ? path.startsWith(pattern) : path === pattern);
+
 test('the privileged surface is exactly what the project ships or executes', () => {
   for (const path of PRIVILEGED_EXAMPLES) {
     assert.ok(privilegedBuildSurface(path), path);
   }
-  for (const path of ['site/index.html', 'site/skill.md', 'tests/build-surface.test.mjs', 'README.md']) {
+  for (const path of ['site/styles.css', 'site/robots.txt', 'tests/build-surface.test.mjs', 'README.md']) {
     assert.ok(!privilegedBuildSurface(path), path);
   }
 });
@@ -24,9 +33,9 @@ test('the changed subset keeps every privileged path, including both sides of a 
   // GitHub reports the new and the previous name of a rename, so a privileged file
   // cannot be moved out of the gate by renaming it.
   assert.equal(UNCHANGED, 'Build surface unchanged.');
-  assert.deepEqual(changedSurface(['site/index.html', 'README.md']), []);
+  assert.deepEqual(changedSurface(['site/styles.css', 'README.md']), []);
   assert.deepEqual(
-    changedSurface(['scripts/evil.mjs', 'site/index.html', 'site/package.json']),
+    changedSurface(['scripts/evil.mjs', 'site/styles.css', 'site/package.json']),
     ['scripts/evil.mjs', 'site/package.json'],
   );
   assert.deepEqual(
@@ -35,17 +44,24 @@ test('the changed subset keeps every privileged path, including both sides of a 
   );
 });
 
+test('every published page is gated and owned, including pages added later', () => {
+  // The pattern gates a new page without an edit here; this keeps the CODEOWNERS
+  // side honest, because an owned-only-by-nobody page would merge on one approval.
+  const pages = readdirSync(new URL('../site', import.meta.url)).filter(name => name.endsWith('.html'));
+  assert.ok(pages.length > 0);
+  const entries = codeOwners();
+  for (const page of pages) {
+    const path = `site/${page}`;
+    assert.ok(privilegedBuildSurface(path), `${path} must be in the surface`);
+    assert.ok(covers(entries, path), `CODEOWNERS must cover ${path}`);
+  }
+});
+
 test('CODEOWNERS covers the whole enforced surface', () => {
-  const entries = readFileSync(new URL('../.github/CODEOWNERS', import.meta.url), 'utf8')
-    .split('\n')
-    .map(line => line.trim())
-    .filter(line => line && !line.startsWith('#'))
-    .map(line => line.split(/\s+/)[0].replace(/^\//, ''));
-  const covers = path => entries.some(pattern =>
-    pattern.endsWith('/') ? path.startsWith(pattern) : path === pattern);
+  const entries = codeOwners();
   for (const path of PRIVILEGED_EXAMPLES) {
     assert.ok(privilegedBuildSurface(path), path);
-    assert.ok(covers(path), `CODEOWNERS must cover ${path}`);
+    assert.ok(covers(entries, path), `CODEOWNERS must cover ${path}`);
   }
 });
 

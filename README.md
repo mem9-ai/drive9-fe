@@ -45,13 +45,25 @@ the candidate head (the target event's own SHA is the default branch). The publi
 has Checks read and no Workflows permission; it cannot write this result or alter workflows.
 See GitHub's [trusted-event guidance](https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target).
 
-Before enabling the publisher, an administrator must require **Studio artifact** on main,
-from the GitHub Actions integration, require an up-to-date branch, and require a PR with
-zero mandatory human approvals. Enforce the rule for administrators too and add no App
-bypass. This lets a successful generated PR merge without a
-human click while pending/failed checks block it. These are GitHub settings; this workflow
-file alone does not enable protection. Confirm the live settings and an App-authored PR
-before declaring automatic publication operational.
+Before declaring publication operational, an administrator must configure `main` as follows:
+
+- require the **Studio artifact** check from the GitHub Actions integration, and **Website
+  tests**;
+- require an up-to-date branch (`strict`);
+- require **at least one approving review** from someone with write access — *no* App
+  bypass and *no* administrator exemption, so the automated publication PR from
+  `mem9-studio-publisher[bot]` waits for a human approval like every other PR;
+- keep CODEOWNERS `require_code_owner_reviews` off if only one approval is wanted; the
+  privileged surface is still covered by the required check, not by ownership.
+
+The approval requirement is the first gate and the **Studio artifact** check is the second:
+the check fails closed when the exact head has no approving review, so a same-named check
+run cannot stand in for a review. Because a review-submission event would run the
+candidate's workflow file, approving does **not** re-run the check; re-run *Trusted Studio
+publication validation* for the branch after approving, and the check turns green on that
+same head. These are GitHub settings; this workflow file alone does not enable protection.
+Confirm the live settings and an App-authored PR before declaring automatic publication
+operational.
 
 No private-source credential is available here. Provenance validation checks the declared
 source repository, full SHA, pinned toolchain/build command and all artifact hashes; it does

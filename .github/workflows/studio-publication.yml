@@ -98,10 +98,9 @@ jobs:
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           # Artifact-only validation uses the same identity story as the approval
-          # exemption: the publisher app itself, plus the branch name the
-          # publisher uses (a candidate picking that name only makes validation
-          # stricter). `sender` is deliberately not consulted.
-          ARTIFACT_ONLY: ${{ github.event.pull_request.user.login == 'mem9-studio-publisher[bot]' || github.head_ref == 'automation/studio-console' }}
+          # exemption: the publisher app's server-assigned login, nothing else.
+          # `sender` and the branch name are deliberately not consulted.
+          ARTIFACT_ONLY: ${{ github.event.pull_request.user.login == 'mem9-studio-publisher[bot]' }}
         run: node scripts/validate-studio-publication.mjs "$HEAD_SHA" "$ARTIFACT_ONLY" "$RUNNER_TEMP/changed-paths.txt"
       - name: Report the required result on that same head
         if: always() && steps.check.outputs.id != ''

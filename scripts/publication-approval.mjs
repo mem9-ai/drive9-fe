@@ -84,16 +84,16 @@ export function changedPaths(files, pull, head) {
 //   'unchanged'   — nothing privileged changed
 //   'exempt'      — the publisher app shipped nothing but the artifact
 //   'approved'    — a maintainer approved this exact head
-//   'approval'    — a privileged change without an approval: advisory, not fatal
+//   'approval'    — a privileged change without an approval: fail closed
 //   'unverifiable'— the file list cannot be trusted yet, retry
 //
-// The approval outcome is deliberately advisory. Approval is enforced by the
-// repository's required reviews, which GitHub clears on its own the moment a
-// reviewer approves; making the check fail on it as well would leave a red check
-// that only a manual re-run could fix, because no review-submission event may
-// safely run this workflow (a head-trusted run could mint its own passing check).
-// The check stays fail-closed where it is the only guard: an untrustworthy
-// listing, malformed metadata, and the artifact-only path rule.
+// The approval outcome fails closed: with no approving review on this exact head
+// the required check is red, so a privileged change cannot merge on the strength
+// of a same-named check run alone. The repository's required reviews are the
+// first gate; this is the second, and neither alone is trusted. An approval does
+// not re-run this workflow (a review-submission event would run the candidate's
+// workflow file and could mint its own passing check), so the check is re-run
+// after the approval — the hint says so.
 // A stale head, a truncated listing or malformed pull metadata is an expected
 // condition, not an exception: `gate` returns `unverifiable` with the reason, so
 // a programmatic caller never has to catch to learn "retry".
@@ -117,9 +117,9 @@ export function gate({ files, pull, reviews, head, authorType, authorLogin }) {
 }
 
 export const APPROVAL_HINT = [
-  'Build-surface change: the repository requires a maintainer approval on this exact head.',
-  'This is advisory here. GitHub blocks the merge until the required reviews are in, '
-    + 'and approves it automatically when they are, so no re-run is needed.',
+  'Build-surface change needs an approving review from a maintainer on this exact head.',
+  'Submitting an approval does not re-run this check automatically; '
+    + 're-run "Trusted Studio publication validation" for this branch to re-evaluate.',
 ];
 
 const invokedDirectly = () => {
@@ -173,9 +173,9 @@ if (invokedDirectly()) {
           } else if (result.outcome === 'approved') {
             console.log(`Approved by ${result.approved.join(', ')} on this head.`);
           } else {
-            // Advisory: the merge is gated by the required reviews, and a review
-            // cannot re-run this workflow safely, so this must not fail the check.
+            // Fail closed: the check is a gate of its own, not a comment.
             for (const line of APPROVAL_HINT) console.error(line);
+            process.exitCode = 1;
           }
         }
       }

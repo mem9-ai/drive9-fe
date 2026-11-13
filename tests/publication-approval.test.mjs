@@ -80,7 +80,7 @@ test('changed paths include both sides of a rename and require a complete list',
   assert.throws(() => changedPaths(files, { changed_files: 2 }, HEAD), /changed_files or head\.sha/);
 });
 
-test('the gate reports every outcome, retries the unverifiable one, and never fails on approval', async t => {
+test('the gate reports every outcome, retries the unverifiable one, and fails closed on approval', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'publication-gate-cli-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const cli = fileURLToPath(new URL('../scripts/publication-approval.mjs', import.meta.url));
@@ -99,29 +99,28 @@ test('the gate reports every outcome, retries the unverifiable one, and never fa
 
   // Nothing privileged changed: pass without looking at reviews, and still hand
   // the validation step the full changed-file list.
-  const unchanged = await run(['site/index.html']);
+  const unchanged = await run(['site/styles.css']);
   assert.equal(unchanged.status, 0);
   assert.equal(unchanged.stdout.trim(), 'Build surface unchanged.');
-  assert.equal(await readFile(pathsOut, 'utf8'), 'site/index.html\n');
+  assert.equal(await readFile(pathsOut, 'utf8'), 'site/styles.css\n');
 
   // Privileged change with an approval on this head: pass.
   const approved = await run(['scripts/build-surface.mjs']);
   assert.equal(approved.status, 0);
   assert.match(approved.stdout, /Approved by mornyx/);
 
-  // Privileged change without an approval: advisory. The check passes and GitHub's
-  // required reviews block the merge, so no manual re-run is ever needed.
+  // Privileged change without an approval: the check fails closed. The repository's
+  // required reviews are the first gate; this check is the second, and neither is
+  // trusted on its own.
   const none = join(directory, 'empty.json');
   await writeFile(none, '[]');
-  const advisory = spawnSync(process.execPath, [cli, 'gate', '--files', files, '--pull', pull,
+  const rejected = spawnSync(process.execPath, [cli, 'gate', '--files', files, '--pull', pull,
     '--reviews', none, '--head', HEAD,
     '--author-type', 'User', '--author-login', 'srstack', '--paths-out', pathsOut], { encoding: 'utf8' });
-  assert.equal(advisory.status, 0);
-  assert.match(advisory.stdout, /Build surface changed \(approval\)/);
-  assert.match(advisory.stderr, /requires a maintainer approval on this exact head/);
-  assert.match(advisory.stderr, /no re-run is needed/);
-  // The validation step still gets the list, because the step now continues.
-  assert.equal(await readFile(pathsOut, 'utf8'), 'scripts/build-surface.mjs\n');
+  assert.equal(rejected.status, 1);
+  assert.match(rejected.stdout, /Build surface changed \(approval\)/);
+  assert.match(rejected.stderr, /needs an approving review/);
+  assert.match(rejected.stderr, /re-run "Trusted Studio publication validation"/);
 
   // Publisher app shipping only the artifact: pass without an approval, and the
   // list written for validation keeps every path, not just the privileged ones.
@@ -134,11 +133,11 @@ test('the gate reports every outcome, retries the unverifiable one, and never fa
   // The same files from any other app, or mixed with code: not exempt, so the
   // outcome is the advisory approval one rather than a pass through the exemption.
   const otherApp = await run(['vendor/studio/index.html'], { authorType: 'Bot', authorLogin: 'dependabot[bot]', reviewsPath: none });
-  assert.equal(otherApp.status, 0);
+  assert.equal(otherApp.status, 1);
   assert.match(otherApp.stdout, /Build surface changed \(approval\)/);
   const mixed = await run(['vendor/studio/index.html', 'scripts/build-surface.mjs'],
     { authorType: 'Bot', authorLogin: 'mem9-studio-publisher[bot]', reviewsPath: none });
-  assert.equal(mixed.status, 0);
+  assert.equal(mixed.status, 1);
   assert.match(mixed.stdout, /Build surface changed \(approval\)/);
 
   // A listing that does not match the head asked for: retry (3), never a verdict.
@@ -175,8 +174,11 @@ test('the workflow keeps only fetching and one gate invocation', () => {
   // Identity tripwire: artifact-only validation stays pinned to the publisher app
   // and must never widen back to "any Bot" (the exact principal-confusion #145
   // fixed). These two assertions used to live in the deleted bot-artifact test.
-  assert.match(workflow, /ARTIFACT_ONLY: \$\{\{ github\.event\.pull_request\.user\.login == 'mem9-studio-publisher\[bot\]'/);
+  assert.match(workflow, /ARTIFACT_ONLY: \$\{\{ github\.event\.pull_request\.user\.login == 'mem9-studio-publisher\[bot\]' \}\}/);
   assert.doesNotMatch(workflow, /ARTIFACT_ONLY: \$\{\{ github\.event\.pull_request\.user\.type == 'Bot'/);
+  // The branch name is candidate-controlled, so it must not select artifact-only
+  // validation (or anything else) any more.
+  assert.doesNotMatch(workflow, /automation\/studio-console/);
   // Exactly one decision call, and its exit code is forwarded rather than swallowed.
   assert.equal(workflow.match(/publication-approval\.mjs gate/g).length, 1);
   assert.match(workflow, /if \[ "\$status" -ne 3 \]; then/);
