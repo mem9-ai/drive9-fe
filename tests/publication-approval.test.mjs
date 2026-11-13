@@ -7,9 +7,10 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { approvedLogins, botArtifactOnlyPublication, changedPaths, gate } from '../scripts/publication-approval.mjs';
+import { approvedLogins, botArtifactOnlyPublication, changedPaths, gate, permissionMap } from '../scripts/publication-approval.mjs';
 
 const HEAD = 'a'.repeat(40);
+const WRITE = { mornyx: true, qiffang: true };
 const review = (login, state, commit = HEAD, at = '2026-11-10T10:00:00Z', association = 'MEMBER') => ({
   user: login === null ? null : { login },
   state,
@@ -19,11 +20,33 @@ const review = (login, state, commit = HEAD, at = '2026-11-10T10:00:00Z', associ
 });
 
 test('only a maintainer approval of this exact head counts', () => {
-  assert.deepEqual(approvedLogins([review('mornyx', 'APPROVED')], HEAD), ['mornyx']);
-  assert.deepEqual(approvedLogins([review('mornyx', 'APPROVED', 'b'.repeat(40))], HEAD), []);
-  assert.deepEqual(approvedLogins([review('outsider', 'APPROVED', HEAD, '2026-11-10T10:00:00Z', 'CONTRIBUTOR')], HEAD), []);
-  assert.deepEqual(approvedLogins([review('mornyx', 'CHANGES_REQUESTED')], HEAD), []);
-  assert.deepEqual(approvedLogins([], HEAD), []);
+  assert.deepEqual(approvedLogins([review('mornyx', 'APPROVED')], HEAD, WRITE), ['mornyx']);
+  assert.deepEqual(approvedLogins([review('mornyx', 'APPROVED', 'b'.repeat(40))], HEAD, WRITE), []);
+  assert.deepEqual(approvedLogins([review('outsider', 'APPROVED', HEAD, '2026-11-10T10:00:00Z', 'CONTRIBUTOR')], HEAD, WRITE), []);
+  assert.deepEqual(approvedLogins([review('mornyx', 'CHANGES_REQUESTED')], HEAD, WRITE), []);
+  assert.deepEqual(approvedLogins([], HEAD, WRITE), []);
+});
+
+test('authorization is write access, not an association', () => {
+  // A read-only collaborator and an org member with no repository access both
+  // report an association that looks like a maintainer; neither may approve.
+  assert.deepEqual(approvedLogins([review('readonly', 'APPROVED')], HEAD, { mornyx: true }), []);
+  assert.deepEqual(approvedLogins([review('member', 'APPROVED')], HEAD, { member: false }), []);
+  // No collaborator data at all: fail closed.
+  assert.deepEqual(approvedLogins([review('mornyx', 'APPROVED')], HEAD), []);
+  assert.deepEqual(approvedLogins([review('mornyx', 'APPROVED')], HEAD, { mornyx: true }), ['mornyx']);
+});
+
+test('the collaborator map keeps only push-capable logins', () => {
+  const pages = [[
+    { login: 'admin', permissions: { admin: true, maintain: true, push: true } },
+    { login: 'maintain', permissions: { admin: false, maintain: true, push: true } },
+    { login: 'writer', permissions: { admin: false, maintain: false, push: true } },
+    { login: 'readonly', permissions: { admin: false, maintain: false, push: false } },
+    { login: 'triage', permissions: { admin: false, maintain: false, push: false, triage: true } },
+    { login: 'unknown' },
+  ]];
+  assert.deepEqual(permissionMap(pages), { admin: true, maintain: true, writer: true });
 });
 
 test('a comment after an approval does not revoke it', () => {
@@ -31,7 +54,7 @@ test('a comment after an approval does not revoke it', () => {
     review('mornyx', 'APPROVED', HEAD, '2026-11-10T10:00:00Z'),
     review('mornyx', 'COMMENTED', HEAD, '2026-11-10T11:00:00Z'),
   ];
-  assert.deepEqual(approvedLogins(reviews, HEAD), ['mornyx']);
+  assert.deepEqual(approvedLogins(reviews, HEAD, WRITE), ['mornyx']);
 });
 
 test('approve then request changes revokes the approval', () => {
@@ -39,7 +62,7 @@ test('approve then request changes revokes the approval', () => {
     review('mornyx', 'APPROVED', HEAD, '2026-11-10T10:00:00Z'),
     review('mornyx', 'CHANGES_REQUESTED', HEAD, '2026-11-10T11:00:00Z'),
   ];
-  assert.deepEqual(approvedLogins(reviews, HEAD), []);
+  assert.deepEqual(approvedLogins(reviews, HEAD, WRITE), []);
 });
 
 test('gate reports an untrustworthy listing as an outcome instead of throwing', () => {
@@ -65,7 +88,7 @@ test('paginated page arrays and null users are handled', () => {
     [review(null, 'APPROVED')],
     [review('qiffang', 'COMMENTED', HEAD, '2026-11-10T09:00:00Z'), review('qiffang', 'APPROVED', HEAD, '2026-11-10T10:00:00Z')],
   ];
-  assert.deepEqual(approvedLogins(reviews, HEAD), ['qiffang']);
+  assert.deepEqual(approvedLogins(reviews, HEAD, WRITE), ['qiffang']);
 });
 
 test('changed paths include both sides of a rename and require a complete list', () => {
@@ -88,12 +111,14 @@ test('the gate reports every outcome, retries the unverifiable one, and fails cl
   const pull = join(directory, 'pull.json');
   const reviews = join(directory, 'reviews.json');
   await writeFile(reviews, JSON.stringify([review('mornyx', 'APPROVED')]));
+  const collaborators = join(directory, 'collaborators.json');
+  await writeFile(collaborators, JSON.stringify([[{ login: 'mornyx', permissions: { push: true } }]]));
   const pathsOut = join(directory, 'changed-paths.txt');
   const run = async (changeFiles, { authorType = 'User', authorLogin = 'srstack', head = HEAD, pullHead = HEAD, reviewsPath = reviews } = {}) => {
     await writeFile(files, JSON.stringify([changeFiles.map(filename => ({ filename }))]));
     await writeFile(pull, JSON.stringify({ changed_files: changeFiles.length, head: { sha: pullHead } }));
     return spawnSync(process.execPath, [cli, 'gate', '--files', files, '--pull', pull, '--reviews', reviewsPath,
-      '--head', head, '--author-type', authorType, '--author-login', authorLogin,
+      '--collaborators', collaborators, '--head', head, '--author-type', authorType, '--author-login', authorLogin,
       '--paths-out', pathsOut], { encoding: 'utf8' });
   };
 
@@ -115,7 +140,7 @@ test('the gate reports every outcome, retries the unverifiable one, and fails cl
   const none = join(directory, 'empty.json');
   await writeFile(none, '[]');
   const rejected = spawnSync(process.execPath, [cli, 'gate', '--files', files, '--pull', pull,
-    '--reviews', none, '--head', HEAD,
+    '--reviews', none, '--collaborators', collaborators, '--head', HEAD,
     '--author-type', 'User', '--author-login', 'srstack', '--paths-out', pathsOut], { encoding: 'utf8' });
   assert.equal(rejected.status, 1);
   assert.match(rejected.stdout, /Build surface changed \(approval\)/);
@@ -149,7 +174,8 @@ test('the gate reports every outcome, retries the unverifiable one, and fails cl
   await writeFile(files, JSON.stringify([[{ filename: 'scripts/build-surface.mjs' }]]));
   await writeFile(pull, JSON.stringify({ changed_files: 2, head: { sha: HEAD } }));
   const truncated = spawnSync(process.execPath, [cli, 'gate', '--files', files, '--pull', pull, '--reviews', reviews,
-    '--head', HEAD, '--author-type', 'User', '--author-login', 'srstack'], { encoding: 'utf8' });
+    '--collaborators', collaborators, '--head', HEAD, '--author-type', 'User', '--author-login', 'srstack'],
+  { encoding: 'utf8' });
   assert.equal(truncated.status, 3);
   assert.match(truncated.stderr, /Cannot verify every changed file/);
 
@@ -167,6 +193,9 @@ test('the workflow keeps only fetching and one gate invocation', () => {
   assert.match(workflow, /--author-type "\$PR_AUTHOR_TYPE" --author-login "\$PR_AUTHOR_LOGIN"/);
   // The validation step consumes this file; the gate must be what produces it.
   assert.match(workflow, /--paths-out "\$RUNNER_TEMP\/changed-paths\.txt"/);
+  // Approver authorization needs GitHub's write-access data, not an association.
+  assert.match(workflow, /collaborators\?affiliation=all/);
+  assert.match(workflow, /--collaborators "\$RUNNER_TEMP\/collaborators\.json"/);
   // The decision must not be re-implemented in shell any more.
   assert.doesNotMatch(workflow, /build-surface\.mjs --stdin/);
   assert.doesNotMatch(workflow, /bot-artifact/);

@@ -7,6 +7,21 @@ import { changedSurface, isConsoleArtifactPath, UNCHANGED } from './build-surfac
 
 const ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
 
+// Write access is the bar, not an association. `author_association` says MEMBER
+// for anyone in the owning organization (who may have no access to this
+// repository) and COLLABORATOR for invited read-only users, so on its own it
+// admits approvals GitHub does not count towards the required review. The
+// collaborators listing is the same source GitHub uses for that decision.
+export function permissionMap(collaborators) {
+  const map = {};
+  for (const entry of flattenPages(collaborators)) {
+    if (!entry || typeof entry.login !== 'string' || !entry.permissions) continue;
+    const { admin, maintain, push } = entry.permissions;
+    if (admin === true || maintain === true || push === true) map[entry.login] = true;
+  }
+  return map;
+}
+
 const readJson = path => JSON.parse(readFileSync(path, 'utf8'));
 
 // `gh api --paginate --slurp` returns one array per page; flatten it.
@@ -14,8 +29,9 @@ export const flattenPages = value => (Array.isArray(value) ? value.flat() : []);
 
 // Logins whose latest state-carrying review approves this exact head. An
 // ordinary comment after an approval does not revoke it, an approval of an
-// earlier commit does not count, and only repository maintainers qualify.
-export function approvedLogins(reviews, head) {
+// earlier commit does not count, and only someone with write access qualifies.
+// `permissions` comes from permissionMap; a login missing from it fails closed.
+export function approvedLogins(reviews, head, permissions = {}) {
   const latest = new Map();
   for (const review of flattenPages(reviews)) {
     if (!review || !review.user || typeof review.user.login !== 'string') continue;
@@ -29,7 +45,8 @@ export function approvedLogins(reviews, head) {
     .filter(review =>
       review.state === 'APPROVED' &&
       review.commit_id === head &&
-      ASSOCIATIONS.has(review.author_association))
+      ASSOCIATIONS.has(review.author_association) &&
+      permissions[review.user.login] === true)
     .map(review => review.user.login)
     .sort();
 }
@@ -100,7 +117,7 @@ export function changedPaths(files, pull, head) {
 // `paths` is the full changed-file list, not just the privileged subset: the
 // validation step consumes it to prove an artifact publication changed nothing
 // else, and it must not be reconstructed from a second definition of "changed".
-export function gate({ files, pull, reviews, head, authorType, authorLogin }) {
+export function gate({ files, pull, reviews, collaborators, head, authorType, authorLogin }) {
   let paths;
   try {
     paths = changedPaths(files, pull, head);
@@ -112,7 +129,7 @@ export function gate({ files, pull, reviews, head, authorType, authorLogin }) {
   if (botArtifactOnlyPublication(paths, authorType, authorLogin)) {
     return { outcome: 'exempt', paths, changed, approved: [] };
   }
-  const approved = approvedLogins(reviews, head);
+  const approved = approvedLogins(reviews, head, permissionMap(collaborators));
   return { outcome: approved.length === 0 ? 'approval' : 'approved', paths, changed, approved };
 }
 
@@ -138,8 +155,8 @@ const option = (args, name) => {
 if (invokedDirectly()) {
   const [command, ...args] = process.argv.slice(2);
   if (command !== 'gate') {
-    console.error('usage: publication-approval.mjs gate --files F --pull P --reviews R --head SHA '
-      + '--author-type T --author-login LOGIN [--paths-out F]');
+    console.error('usage: publication-approval.mjs gate --files F --pull P --reviews R '
+      + '--collaborators C --head SHA --author-type T --author-login LOGIN [--paths-out F]');
     process.exitCode = 2;
   } else {
     try {
@@ -147,6 +164,8 @@ if (invokedDirectly()) {
         files: readJson(option(args, '--files')),
         pull: readJson(option(args, '--pull')),
         reviews: readJson(option(args, '--reviews')),
+        // Absent collaborator data yields no eligible approver: fail closed.
+        collaborators: option(args, '--collaborators') ? readJson(option(args, '--collaborators')) : [],
         head: option(args, '--head'),
         authorType: option(args, '--author-type'),
         authorLogin: option(args, '--author-login'),

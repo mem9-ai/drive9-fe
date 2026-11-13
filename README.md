@@ -50,8 +50,10 @@ Before declaring publication operational, an administrator must configure `main`
 - require the **Studio artifact** check from the GitHub Actions integration, and **Website
   tests**;
 - require an up-to-date branch (`strict`);
-- require **at least one approving review** from someone with write access — *no* App
-  bypass and *no* administrator exemption, so the automated publication PR from
+- require **at least one approving review** from someone with **write access** (`push`,
+  `maintain` or `admin`); the gate checks the same thing against GitHub's collaborators
+  listing, so an `author_association` of `MEMBER`/`COLLABORATOR` alone is not enough.
+  No App bypass and no administrator exemption, so the automated publication PR from
   `mem9-studio-publisher[bot]` waits for a human approval like every other PR;
 - keep CODEOWNERS `require_code_owner_reviews` off if only one approval is wanted;
   `.github/CODEOWNERS` is coarse (one rule per privileged area) and only drives review
