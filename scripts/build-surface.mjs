@@ -5,9 +5,9 @@
 // any of these changes code execution in the deploy environment. This module is
 // the single source for the gate in `.github/workflows/studio-publication.yml`.
 //
-// `.github/CODEOWNERS` keeps a deliberately broader review set. `EXACT_PATHS` and
-// `PREFIX_SAMPLES` are derived from the sets themselves, so the tests and the
-// CODEOWNERS coverage check cannot drift from the surface they describe.
+// `.github/CODEOWNERS` is coarse on purpose: it drives review requests, while this
+// list is what the workflow enforces. `EXACT_PATHS` and `PREFIX_SAMPLES` are derived
+// from the sets themselves, so the tests cannot drift from the surface.
 // Netlify installs from whichever of these it finds (root or base directory), and
 // a lockfile or registry config decides what the installer downloads. The non-Node
 // manifests are inert for today's static build but are listed so a build command
@@ -60,8 +60,8 @@ export const CONSOLE_SIGNATURE = 'vendor/studio-build.json.sig';
 // `site/_headers` decides which origins may read the credentialed responses
 // served beside it. Each decides what visitors and agents execute or may read, so
 // each carries the same approval requirement. Pages match by pattern, so a page
-// added later is gated without editing this file, and a test requires every page
-// in `site/` to be covered by CODEOWNERS as well.
+// added later is gated without editing this file, and a test walks `site/` so an
+// unlisted page cannot slip through.
 //
 // `site/releases/**` (checked-in binaries) is not here either, and does not need
 // to be: `/releases/*` is redirected to releases.drive9.ai with `force = true` in
@@ -76,8 +76,8 @@ const PUBLISHED_CODE = [
   CONSOLE_SIGNATURE,
 ];
 
-// Pages are gated by pattern; this list exists so the example test and the
-// CODEOWNERS coverage test see them, and so adding a page without owning it fails.
+// Pages are gated by pattern; this list keeps the example test honest about the
+// pages that exist today.
 const PUBLIC_PAGES = [
   'site/index.html',
   'site/sdk.html',
@@ -131,9 +131,8 @@ export const privilegedBuildSurface = path =>
   isPublicPage(path) ||
   DIRECTORY_PREFIXES.some(prefix => path.startsWith(prefix));
 
-// One sample per directory prefix, plus every exact path. The predicate test and
-// the CODEOWNERS coverage test both iterate this list, so a path added to any
-// canonical set is automatically pinned, and CODEOWNERS has to cover it too.
+// One sample per directory prefix, plus every exact path and page. The predicate
+// test iterates this list, so a path added to any canonical set is pinned.
 const PREFIX_SAMPLES = DIRECTORY_PREFIXES.map(prefix => `${prefix}hello.mjs`);
 
 export const PRIVILEGED_EXAMPLES = [...PREFIX_SAMPLES, ...PUBLIC_PAGES, ...EXACT_PATHS];

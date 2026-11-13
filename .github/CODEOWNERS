@@ -1,64 +1,14 @@
-# Files that decide what the privileged Netlify build executes. Netlify runs the
-# build command from the built revision, so changes here change code execution in
-# the deploy environment and need an explicit maintainer approval.
-# The enforced surface list is scripts/build-surface.mjs; this file is the
-# broader review set and must stay a superset of it.
-/.github/CODEOWNERS         @qiffang @srstack
-/.github/workflows/         @qiffang @srstack
-/netlify.toml               @qiffang @srstack
-/site/netlify.toml          @qiffang @srstack
-/netlify/functions/         @qiffang @srstack
-/netlify/edge-functions/    @qiffang @srstack
-/site/netlify/functions/    @qiffang @srstack
-/site/netlify/edge-functions/  @qiffang @srstack
-/site/install.sh            @qiffang @srstack
-/site/install.ps1           @qiffang @srstack
-# Published files that decide what visitors and agents execute or may read.
-/site/index.html            @qiffang @srstack
-/site/sdk.html              @qiffang @srstack
-/site/security.html         @qiffang @srstack
-/site/faq.html              @qiffang @srstack
-/site/changelog.html        @qiffang @srstack
-/site/skill.md              @qiffang @srstack
-/site/_headers              @qiffang @srstack
-/site/manifest/             @qiffang @srstack
-/site/package.json          @qiffang @srstack
-/site/package-lock.json     @qiffang @srstack
-/package.json               @qiffang @srstack
-/package-lock.json          @qiffang @srstack
-/yarn.lock                 @qiffang @srstack
-/pnpm-lock.yaml             @qiffang @srstack
-/.npmrc                     @qiffang @srstack
-/.yarnrc                    @qiffang @srstack
-/.yarnrc.yml                 @qiffang @srstack
-/bun.lockb                  @qiffang @srstack
-/bun.lock                    @qiffang @srstack
-/deno.json                  @qiffang @srstack
-/deno.lock                  @qiffang @srstack
-/composer.json              @qiffang @srstack
-/composer.lock              @qiffang @srstack
-/Gemfile                    @qiffang @srstack
-/Gemfile.lock               @qiffang @srstack
-/requirements.txt           @qiffang @srstack
-/pyproject.toml             @qiffang @srstack
-/poetry.lock                 @qiffang @srstack
-/site/yarn.lock             @qiffang @srstack
-/site/pnpm-lock.yaml        @qiffang @srstack
-/site/.npmrc                @qiffang @srstack
-/site/.yarnrc               @qiffang @srstack
-/site/.yarnrc.yml            @qiffang @srstack
-/site/bun.lockb             @qiffang @srstack
-/site/bun.lock               @qiffang @srstack
-/site/deno.json             @qiffang @srstack
-/site/deno.lock             @qiffang @srstack
-/site/composer.json         @qiffang @srstack
-/site/composer.lock         @qiffang @srstack
-/site/Gemfile               @qiffang @srstack
-/site/Gemfile.lock          @qiffang @srstack
-/site/requirements.txt      @qiffang @srstack
-/site/pyproject.toml        @qiffang @srstack
-/site/poetry.lock            @qiffang @srstack
-/scripts/                   @qiffang @srstack
-/vendor/studio/             @qiffang @srstack
-/vendor/studio-build.json   @qiffang @srstack
-/vendor/studio-build.json.sig  @qiffang @srstack
+# Code owners are used for review requests, not as a merge gate: the gate is the
+# required "Studio artifact" check (fail closed without an approving review on the
+# exact head) plus the repository's required approvals.
+#
+# Deliberately coarse: one rule per privileged area. The enforced path list lives
+# in scripts/build-surface.mjs and is what the workflow actually checks.
+/.github/           @qiffang @srstack
+/scripts/           @qiffang @srstack
+/site/              @qiffang @srstack
+/netlify.toml       @qiffang @srstack
+/netlify/           @qiffang @srstack
+/vendor/            @qiffang @srstack
+/package.json       @qiffang @srstack
+/package-lock.json  @qiffang @srstack

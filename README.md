@@ -53,8 +53,9 @@ Before declaring publication operational, an administrator must configure `main`
 - require **at least one approving review** from someone with write access — *no* App
   bypass and *no* administrator exemption, so the automated publication PR from
   `mem9-studio-publisher[bot]` waits for a human approval like every other PR;
-- keep CODEOWNERS `require_code_owner_reviews` off if only one approval is wanted; the
-  privileged surface is still covered by the required check, not by ownership.
+- keep CODEOWNERS `require_code_owner_reviews` off if only one approval is wanted;
+  `.github/CODEOWNERS` is coarse (one rule per privileged area) and only drives review
+  requests — the enforced path list is `scripts/build-surface.mjs`.
 
 The approval requirement is the first gate and the **Studio artifact** check is the second:
 the check fails closed when the exact head has no approving review, so a same-named check
