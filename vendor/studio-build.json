@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/mem9-ai/tidb.ai",
-  "commit": "b3c7cf69f794a42a4b07300544a697688ea63d83",
+  "commit": "c36afccb332e3b0a9aeac4094de0f63710bd47eb",
   "node": "24.22.1",
   "npm": "11.6.2",
   "build": "npm ci && npm run build:console -- --base=/studio/",
