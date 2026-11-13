@@ -81,11 +81,19 @@ export function changedPaths(files, pull, head) {
 
 // The whole gate decision, in one tested place. The workflow fetches GitHub's
 // objects and calls this; it no longer interprets the outcome itself.
-//   'unchanged'   — nothing privileged changed, pass
-//   'exempt'      — the publisher app shipped nothing but the artifact, pass
-//   'approved'    — a maintainer approved this exact head, pass
-//   'approval'    — a privileged change without an approval, fail
+//   'unchanged'   — nothing privileged changed
+//   'exempt'      — the publisher app shipped nothing but the artifact
+//   'approved'    — a maintainer approved this exact head
+//   'approval'    — a privileged change without an approval: advisory, not fatal
 //   'unverifiable'— the file list cannot be trusted yet, retry
+//
+// The approval outcome is deliberately advisory. Approval is enforced by the
+// repository's required reviews, which GitHub clears on its own the moment a
+// reviewer approves; making the check fail on it as well would leave a red check
+// that only a manual re-run could fix, because no review-submission event may
+// safely run this workflow (a head-trusted run could mint its own passing check).
+// The check stays fail-closed where it is the only guard: an untrustworthy
+// listing, malformed metadata, and the artifact-only path rule.
 // A stale head, a truncated listing or malformed pull metadata is an expected
 // condition, not an exception: `gate` returns `unverifiable` with the reason, so
 // a programmatic caller never has to catch to learn "retry".
@@ -109,9 +117,9 @@ export function gate({ files, pull, reviews, head, authorType, authorLogin }) {
 }
 
 export const APPROVAL_HINT = [
-  'Build-surface change needs an approving review from a maintainer on this exact head.',
-  'Submitting an approval does not re-run this check automatically; '
-    + 're-run "Trusted Studio publication validation" for this branch to re-evaluate.',
+  'Build-surface change: the repository requires a maintainer approval on this exact head.',
+  'This is advisory here. GitHub blocks the merge until the required reviews are in, '
+    + 'and approves it automatically when they are, so no re-run is needed.',
 ];
 
 const invokedDirectly = () => {
@@ -149,10 +157,10 @@ if (invokedDirectly()) {
         process.exitCode = 3;
       } else {
         const pathsOut = option(args, '--paths-out');
-        if (pathsOut && result.outcome !== 'approval') {
-          // Written for the passing outcomes only: the validation step runs after
-          // exit 0 and needs the same changed-file list the gate just verified,
-          // not one reconstructed from a second definition of "changed".
+        if (pathsOut) {
+          // The validation step runs after this exits 0 and needs the same
+          // changed-file list the gate just verified, not one reconstructed from a
+          // second definition of "changed".
           writeFileSync(pathsOut, `${result.paths.join('\n')}\n`);
         }
         if (result.outcome === 'unchanged') {
@@ -161,12 +169,13 @@ if (invokedDirectly()) {
           console.log(`Build surface changed (${result.outcome}):`);
           for (const path of result.changed) console.log(path);
           if (result.outcome === 'exempt') {
-            console.log(`Artifact-only publication by ${option(args, '--author-login')}: a maintainer approval is not required.`);
+            console.log(`Artifact-only publication by ${option(args, '--author-login')}: no maintainer approval is required.`);
           } else if (result.outcome === 'approved') {
             console.log(`Approved by ${result.approved.join(', ')} on this head.`);
           } else {
+            // Advisory: the merge is gated by the required reviews, and a review
+            // cannot re-run this workflow safely, so this must not fail the check.
             for (const line of APPROVAL_HINT) console.error(line);
-            process.exitCode = 1;
           }
         }
       }
