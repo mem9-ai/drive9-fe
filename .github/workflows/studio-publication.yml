@@ -66,8 +66,10 @@ jobs:
           # it changes code execution in the deploy environment. Every decision
           # lives in scripts/publication-approval.mjs (`gate`): this step only
           # fetches GitHub's objects, retries a listing that is not trustworthy
-          # yet, and forwards the exit status. 0 = pass, 1 = approval required,
-          # 3 = retry, anything else = fail closed.
+          # yet, and forwards the exit status. 0 = pass, 3 = retry, anything else
+          # fails closed. Approval is not decided here: the repository's required
+          # reviews gate the merge and clear themselves when a reviewer approves,
+          # so this check never needs a manual re-run after an approval.
           status=1
           for attempt in 1 2; do
             gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" > "$RUNNER_TEMP/files.json"
