@@ -63,12 +63,11 @@ Before declaring publication operational, an administrator must configure `main`
   `.github/CODEOWNERS` is coarse (one rule per privileged area) and only drives review
   requests — the enforced path list is `scripts/build-surface.mjs`.
 
-The approval requirement is the first gate and the **Studio artifact** check is the second:
-the check fails closed when the exact head has no approving review, so a same-named check
-run cannot stand in for a review. Because a review-submission event would run the
-candidate's workflow file, approving does **not** re-run the check; re-run *Trusted Studio
-publication validation* for the branch after approving, and the check turns green on that
-same head. These are GitHub settings; this workflow file alone does not enable protection.
+The required review is the merge gate. The **Studio artifact** check does not duplicate it:
+on a privileged change without an approval it reports the requirement and stays green, so a
+reviewer's approval is the only click needed — GitHub blocks the merge until the review
+exists and allows it once it does, with no re-run. The check still fails closed where it is
+the only guard (an untrustworthy file list, malformed metadata, the artifact-only path rule). These are GitHub settings; this workflow file alone does not enable protection.
 Confirm the live settings and an App-authored PR before declaring automatic publication
 operational.
 

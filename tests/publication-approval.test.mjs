@@ -103,7 +103,7 @@ test('changed paths include both sides of a rename and require a complete list',
   assert.throws(() => changedPaths(files, { changed_files: 2 }, HEAD), /changed_files or head\.sha/);
 });
 
-test('the gate reports every outcome, retries the unverifiable one, and fails closed on approval', async t => {
+test('the gate reports every outcome, retries the unverifiable one, and treats approval as advisory', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'publication-gate-cli-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const cli = fileURLToPath(new URL('../scripts/publication-approval.mjs', import.meta.url));
@@ -134,18 +134,17 @@ test('the gate reports every outcome, retries the unverifiable one, and fails cl
   assert.equal(approved.status, 0);
   assert.match(approved.stdout, /Approved by mornyx/);
 
-  // Privileged change without an approval: the check fails closed. The repository's
-  // required reviews are the first gate; this check is the second, and neither is
-  // trusted on its own.
+  // Privileged change without an approval: advisory. GitHub's required review
+  // blocks the merge and clears itself on approval, so the check stays green.
   const none = join(directory, 'empty.json');
   await writeFile(none, '[]');
   const rejected = spawnSync(process.execPath, [cli, 'gate', '--files', files, '--pull', pull,
     '--reviews', none, '--collaborators', collaborators, '--head', HEAD,
     '--author-type', 'User', '--author-login', 'srstack', '--paths-out', pathsOut], { encoding: 'utf8' });
-  assert.equal(rejected.status, 1);
+  assert.equal(rejected.status, 0);
   assert.match(rejected.stdout, /Build surface changed \(approval\)/);
-  assert.match(rejected.stderr, /needs an approving review/);
-  assert.match(rejected.stderr, /re-run "Trusted Studio publication validation"/);
+  assert.match(rejected.stderr, /requires an approving review on this exact head/);
+  assert.match(rejected.stderr, /no re-run of this check is needed/);
 
   // Publisher app shipping only the artifact: pass without an approval, and the
   // list written for validation keeps every path, not just the privileged ones.
@@ -158,11 +157,11 @@ test('the gate reports every outcome, retries the unverifiable one, and fails cl
   // The same files from any other app, or mixed with code: not exempt, so the
   // outcome is the advisory approval one rather than a pass through the exemption.
   const otherApp = await run(['vendor/studio/index.html'], { authorType: 'Bot', authorLogin: 'dependabot[bot]', reviewsPath: none });
-  assert.equal(otherApp.status, 1);
+  assert.equal(otherApp.status, 0);
   assert.match(otherApp.stdout, /Build surface changed \(approval\)/);
   const mixed = await run(['vendor/studio/index.html', 'scripts/build-surface.mjs'],
     { authorType: 'Bot', authorLogin: 'mem9-studio-publisher[bot]', reviewsPath: none });
-  assert.equal(mixed.status, 1);
+  assert.equal(mixed.status, 0);
   assert.match(mixed.stdout, /Build surface changed \(approval\)/);
 
   // A listing that does not match the head asked for: retry (3), never a verdict.
