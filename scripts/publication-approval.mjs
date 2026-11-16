@@ -7,6 +7,21 @@ import { changedSurface, isConsoleArtifactPath, UNCHANGED } from './build-surfac
 
 const ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
 
+// Write access is the bar, not an association. `author_association` says MEMBER
+// for anyone in the owning organization (who may have no access to this
+// repository) and COLLABORATOR for invited read-only users, so on its own it
+// admits approvals GitHub does not count towards the required review. The
+// collaborators listing is the same source GitHub uses for that decision.
+export function permissionMap(collaborators) {
+  const map = {};
+  for (const entry of flattenPages(collaborators)) {
+    if (!entry || typeof entry.login !== 'string' || !entry.permissions) continue;
+    const { admin, maintain, push } = entry.permissions;
+    if (admin === true || maintain === true || push === true) map[entry.login] = true;
+  }
+  return map;
+}
+
 const readJson = path => JSON.parse(readFileSync(path, 'utf8'));
 
 // `gh api --paginate --slurp` returns one array per page; flatten it.
@@ -14,8 +29,9 @@ export const flattenPages = value => (Array.isArray(value) ? value.flat() : []);
 
 // Logins whose latest state-carrying review approves this exact head. An
 // ordinary comment after an approval does not revoke it, an approval of an
-// earlier commit does not count, and only repository maintainers qualify.
-export function approvedLogins(reviews, head) {
+// earlier commit does not count, and only someone with write access qualifies.
+// `permissions` comes from permissionMap; a login missing from it fails closed.
+export function approvedLogins(reviews, head, permissions = {}) {
   const latest = new Map();
   for (const review of flattenPages(reviews)) {
     if (!review || !review.user || typeof review.user.login !== 'string') continue;
@@ -29,7 +45,8 @@ export function approvedLogins(reviews, head) {
     .filter(review =>
       review.state === 'APPROVED' &&
       review.commit_id === head &&
-      ASSOCIATIONS.has(review.author_association))
+      ASSOCIATIONS.has(review.author_association) &&
+      permissions[review.user.login] === true)
     .map(review => review.user.login)
     .sort();
 }
@@ -84,23 +101,23 @@ export function changedPaths(files, pull, head) {
 //   'unchanged'   — nothing privileged changed
 //   'exempt'      — the publisher app shipped nothing but the artifact
 //   'approved'    — a maintainer approved this exact head
-//   'approval'    — a privileged change without an approval: advisory, not fatal
+//   'approval'    — a privileged change without an approval: fail closed
 //   'unverifiable'— the file list cannot be trusted yet, retry
 //
-// The approval outcome is deliberately advisory. Approval is enforced by the
-// repository's required reviews, which GitHub clears on its own the moment a
-// reviewer approves; making the check fail on it as well would leave a red check
-// that only a manual re-run could fix, because no review-submission event may
-// safely run this workflow (a head-trusted run could mint its own passing check).
-// The check stays fail-closed where it is the only guard: an untrustworthy
-// listing, malformed metadata, and the artifact-only path rule.
+// The approval outcome fails closed: with no approving review on this exact head
+// the required check is red, so a privileged change cannot merge on the strength
+// of a same-named check run alone. The repository's required reviews are the
+// first gate; this is the second, and neither alone is trusted. An approval does
+// not re-run this workflow (a review-submission event would run the candidate's
+// workflow file and could mint its own passing check), so the check is re-run
+// after the approval — the hint says so.
 // A stale head, a truncated listing or malformed pull metadata is an expected
 // condition, not an exception: `gate` returns `unverifiable` with the reason, so
 // a programmatic caller never has to catch to learn "retry".
 // `paths` is the full changed-file list, not just the privileged subset: the
 // validation step consumes it to prove an artifact publication changed nothing
 // else, and it must not be reconstructed from a second definition of "changed".
-export function gate({ files, pull, reviews, head, authorType, authorLogin }) {
+export function gate({ files, pull, reviews, collaborators, head, authorType, authorLogin }) {
   let paths;
   try {
     paths = changedPaths(files, pull, head);
@@ -112,14 +129,14 @@ export function gate({ files, pull, reviews, head, authorType, authorLogin }) {
   if (botArtifactOnlyPublication(paths, authorType, authorLogin)) {
     return { outcome: 'exempt', paths, changed, approved: [] };
   }
-  const approved = approvedLogins(reviews, head);
+  const approved = approvedLogins(reviews, head, permissionMap(collaborators));
   return { outcome: approved.length === 0 ? 'approval' : 'approved', paths, changed, approved };
 }
 
 export const APPROVAL_HINT = [
-  'Build-surface change: the repository requires a maintainer approval on this exact head.',
-  'This is advisory here. GitHub blocks the merge until the required reviews are in, '
-    + 'and approves it automatically when they are, so no re-run is needed.',
+  'Build-surface change needs an approving review from a maintainer on this exact head.',
+  'Submitting an approval does not re-run this check automatically; '
+    + 're-run "Trusted Studio publication validation" for this branch to re-evaluate.',
 ];
 
 const invokedDirectly = () => {
@@ -138,8 +155,8 @@ const option = (args, name) => {
 if (invokedDirectly()) {
   const [command, ...args] = process.argv.slice(2);
   if (command !== 'gate') {
-    console.error('usage: publication-approval.mjs gate --files F --pull P --reviews R --head SHA '
-      + '--author-type T --author-login LOGIN [--paths-out F]');
+    console.error('usage: publication-approval.mjs gate --files F --pull P --reviews R '
+      + '--collaborators C --head SHA --author-type T --author-login LOGIN [--paths-out F]');
     process.exitCode = 2;
   } else {
     try {
@@ -147,6 +164,8 @@ if (invokedDirectly()) {
         files: readJson(option(args, '--files')),
         pull: readJson(option(args, '--pull')),
         reviews: readJson(option(args, '--reviews')),
+        // Absent collaborator data yields no eligible approver: fail closed.
+        collaborators: option(args, '--collaborators') ? readJson(option(args, '--collaborators')) : [],
         head: option(args, '--head'),
         authorType: option(args, '--author-type'),
         authorLogin: option(args, '--author-login'),
@@ -173,9 +192,9 @@ if (invokedDirectly()) {
           } else if (result.outcome === 'approved') {
             console.log(`Approved by ${result.approved.join(', ')} on this head.`);
           } else {
-            // Advisory: the merge is gated by the required reviews, and a review
-            // cannot re-run this workflow safely, so this must not fail the check.
+            // Fail closed: the check is a gate of its own, not a comment.
             for (const line of APPROVAL_HINT) console.error(line);
+            process.exitCode = 1;
           }
         }
       }
