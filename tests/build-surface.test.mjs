@@ -7,7 +7,6 @@ import {
   CONSOLE_ARTIFACT_DIRECTORY,
   CONSOLE_MANIFEST,
   isConsoleArtifactPath,
-  isPublishedPath,
   PRIVILEGED_EXAMPLES,
   privilegedBuildSurface,
   changedSurface,

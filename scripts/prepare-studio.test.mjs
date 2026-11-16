@@ -121,8 +121,9 @@ test('the deploy build verifies the publisher signature, not just the checksums'
   // No pin: checksums only, exactly the behaviour before signing existed.
   await verifyPublishedArtifact(directory, '');
 
-  // Pinned: a missing signature stops the deploy.
-  await assert.rejects(verifyPublishedArtifact(directory, pinned), { code: 'ENOENT' });
+  // Pinned: a missing signature stops the deploy with a signature-specific message,
+  // not the generic "build output is missing" one.
+  await assert.rejects(verifyPublishedArtifact(directory, pinned), /is missing: a pinned signing key requires/);
 
   // A signature from the pinned key deploys.
   await writeFile(signature, signManifest(await readFile(manifest), privateKey));

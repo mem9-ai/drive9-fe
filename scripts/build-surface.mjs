@@ -123,8 +123,10 @@ export const privilegedBuildSurface = path =>
   isPublishedPath(path) ||
   DIRECTORY_PREFIXES.some(prefix => path.startsWith(prefix));
 
-// One sample per directory prefix, plus every exact path and page. The predicate
-// test iterates this list, so a path added to any canonical set is pinned.
+// One sample per directory prefix plus every exact path. Published files under
+// `site/` are covered by the prefix, so they need no separate samples. The
+// predicate test iterates this list, so a path added to any canonical set is
+// pinned.
 const PREFIX_SAMPLES = DIRECTORY_PREFIXES.map(prefix => `${prefix}hello.mjs`);
 
 export const PRIVILEGED_EXAMPLES = [...PREFIX_SAMPLES, 'site/index.html', 'site/tidb-logo.svg', ...EXACT_PATHS];
