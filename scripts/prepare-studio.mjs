@@ -3,6 +3,12 @@ import { isIP } from 'node:net';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verifyStudioArtifact } from './studio-artifact.mjs';
+import {
+  MANIFEST_SIGNATURE_PATH,
+  PINNED_PUBLIC_KEY,
+  signatureConfigured,
+  verifyManifestSignature,
+} from './studio-signature.mjs';
 import { prepareDiscovery } from './prepare-discovery.mjs';
 
 export function studioRedirects(apiOrigin) {
@@ -45,10 +51,26 @@ export async function prepareStudio({ consoleDirectory, siteDirectory, apiOrigin
   await prepareDiscovery(destination, siteDirectory, context);
 }
 
+// The deploy build is the last place the artifact can be checked before it is
+// served, so it verifies the publisher signature as well as the checksums: an
+// artifact that reached this revision without a signature, or with one that does
+// not verify against the pinned key, stops the deploy instead of shipping to
+// authenticated users. Exported so the deploy path is covered by a test.
+export async function verifyPublishedArtifact(root, publicKey = PINNED_PUBLIC_KEY) {
+  const manifest = resolve(root, 'vendor/studio-build.json');
+  await verifyStudioArtifact(resolve(root, 'vendor/studio'), manifest);
+  if (!signatureConfigured(publicKey)) return;
+  await verifyManifestSignature(
+    await readFile(manifest),
+    await readFile(resolve(root, MANIFEST_SIGNATURE_PATH), 'utf8'),
+    publicKey,
+  );
+}
+
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const root = fileURLToPath(new URL('../', import.meta.url));
   try {
-    await verifyStudioArtifact(resolve(root, 'vendor/studio'), resolve(root, 'vendor/studio-build.json'));
+    await verifyPublishedArtifact(root);
     await prepareStudio({
       consoleDirectory: resolve(root, 'vendor/studio'),
       siteDirectory: resolve(root, 'site'),

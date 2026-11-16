@@ -68,25 +68,18 @@ export const CONSOLE_SIGNATURE = 'vendor/studio-build.json.sig';
 // `site/netlify.toml`, so those files are unreachable in production. The redirect
 // is what protects them, and that file is in the surface.
 const PUBLISHED_CODE = [
-  'site/install.sh',
-  'site/install.ps1',
-  'site/skill.md',
-  'site/_headers',
   CONSOLE_MANIFEST,
   CONSOLE_SIGNATURE,
 ];
 
-// Pages are gated by pattern; this list keeps the example test honest about the
-// pages that exist today.
-const PUBLIC_PAGES = [
-  'site/index.html',
-  'site/sdk.html',
-  'site/security.html',
-  'site/faq.html',
-  'site/changelog.html',
-];
+// The Netlify publish directory, minus the release binaries the redirect makes
+// unreachable. One prefix, so a file added anywhere under `site/` is gated
+// without editing this module.
+const PUBLISH_ROOT = 'site/';
+const UNREACHABLE_RELEASES = 'site/releases/';
 
-export const isPublicPage = path => /^site\/[^/]+\.html$/.test(path);
+export const isPublishedPath = path =>
+  path.startsWith(PUBLISH_ROOT) && !path.startsWith(UNREACHABLE_RELEASES);
 
 // Imported by the approval exemption and by the trusted validator, so the two
 // halves of the exemption cannot disagree about which paths they cover.
@@ -114,7 +107,6 @@ const DIRECTORY_PREFIXES = [
   'scripts/',
   '.github/workflows/',
   CONSOLE_ARTIFACT_DIRECTORY,
-  'site/manifest/',
   ...FUNCTION_DIRECTORIES.map(directory => `${directory}/`),
 ];
 
@@ -128,14 +120,14 @@ const EXACT_PATHS = new Set([
 
 export const privilegedBuildSurface = path =>
   EXACT_PATHS.has(path) ||
-  isPublicPage(path) ||
+  isPublishedPath(path) ||
   DIRECTORY_PREFIXES.some(prefix => path.startsWith(prefix));
 
 // One sample per directory prefix, plus every exact path and page. The predicate
 // test iterates this list, so a path added to any canonical set is pinned.
 const PREFIX_SAMPLES = DIRECTORY_PREFIXES.map(prefix => `${prefix}hello.mjs`);
 
-export const PRIVILEGED_EXAMPLES = [...PREFIX_SAMPLES, ...PUBLIC_PAGES, ...EXACT_PATHS];
+export const PRIVILEGED_EXAMPLES = [...PREFIX_SAMPLES, 'site/index.html', 'site/tidb-logo.svg', ...EXACT_PATHS];
 
 export const UNCHANGED = 'Build surface unchanged.';
 

@@ -34,6 +34,10 @@ installed only on this repository, with Contents and Pull requests write plus Ch
 The **Studio artifact** check in this repository independently validates checksums, exact
 source/build metadata, allowed public files, common credential markers, and website routes.
 Generated publication PRs may change only `vendor/studio/` and `vendor/studio-build.json`.
+The Netlify build verifies the same signature before it publishes (`prepare-studio.mjs`), so an
+artifact that reaches a deploy revision without a valid signature stops the deploy rather than
+shipping to authenticated users. The build also serves the whole `site/` directory, which is why
+every file under it — not only the top-level HTML pages — is part of the approval surface.
 The check has no deployment credentials and runs for every PR, including fork PRs.
 It uses `pull_request_target` and explicitly checks out the immutable trusted default-branch
 revision. It reads candidate Git blobs at the event's exact head SHA as data: it never

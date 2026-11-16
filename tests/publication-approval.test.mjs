@@ -124,10 +124,10 @@ test('the gate reports every outcome, retries the unverifiable one, and fails cl
 
   // Nothing privileged changed: pass without looking at reviews, and still hand
   // the validation step the full changed-file list.
-  const unchanged = await run(['site/styles.css']);
+  const unchanged = await run(['docs/notes.md']);
   assert.equal(unchanged.status, 0);
   assert.equal(unchanged.stdout.trim(), 'Build surface unchanged.');
-  assert.equal(await readFile(pathsOut, 'utf8'), 'site/styles.css\n');
+  assert.equal(await readFile(pathsOut, 'utf8'), 'docs/notes.md\n');
 
   // Privileged change with an approval on this head: pass.
   const approved = await run(['scripts/build-surface.mjs']);

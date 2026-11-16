@@ -100,3 +100,40 @@ test('approved public discovery pages get production canonicals and preview noin
   assert.match(await readFile(join(options.siteDirectory,'sitemap.xml'),'utf8'),/studio\/discover\//);
   await prepareStudio({...options,context:'deploy-preview'});html=await readFile(join(options.siteDirectory,'studio/discover/index.html'),'utf8');assert.match(html,/noindex,follow/);assert.ok(!html.includes('rel="canonical"'));
 });
+
+test('the deploy build verifies the publisher signature, not just the checksums', async (t) => {
+  const { generateKeyPairSync } = await import('node:crypto');
+  const { cp, mkdtemp, rm, writeFile } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { verifyPublishedArtifact } = await import('./prepare-studio.mjs');
+  const { signManifest } = await import('./studio-signature.mjs');
+
+  const directory = await mkdtemp(join(tmpdir(), 'deploy-verify-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  await cp(new URL('../vendor/studio', import.meta.url), join(directory, 'vendor/studio'), { recursive: true });
+  await cp(new URL('../vendor/studio-build.json', import.meta.url), join(directory, 'vendor/studio-build.json'));
+  const manifest = join(directory, 'vendor/studio-build.json');
+  const signature = join(directory, 'vendor/studio-build.json.sig');
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const pinned = publicKey.export({ type: 'spki', format: 'pem' });
+
+  // No pin: checksums only, exactly the behaviour before signing existed.
+  await verifyPublishedArtifact(directory, '');
+
+  // Pinned: a missing signature stops the deploy.
+  await assert.rejects(verifyPublishedArtifact(directory, pinned), { code: 'ENOENT' });
+
+  // A signature from the pinned key deploys.
+  await writeFile(signature, signManifest(await readFile(manifest), privateKey));
+  await verifyPublishedArtifact(directory, pinned);
+
+  // A signature over different bytes stops it.
+  await writeFile(signature, signManifest(Buffer.from('{"files":{}}'), privateKey));
+  await assert.rejects(verifyPublishedArtifact(directory, pinned), /does not match the pinned publisher key/);
+
+  // A different key stops it.
+  const other = generateKeyPairSync('ed25519');
+  await writeFile(signature, signManifest(await readFile(manifest), other.privateKey));
+  await assert.rejects(verifyPublishedArtifact(directory, pinned), /does not match the pinned publisher key/);
+});
