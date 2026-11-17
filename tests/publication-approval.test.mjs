@@ -103,6 +103,26 @@ test('changed paths include both sides of a rename and require a complete list',
   assert.throws(() => changedPaths(files, { changed_files: 2 }, HEAD), /changed_files or head\.sha/);
 });
 
+test('an approval of an earlier commit does not authorize the new head', () => {
+  // Approve-A-then-push-B: the exact-head check must not treat A's approval as
+  // B's. Enforcing it is GitHub's job (stale approvals are dismissed and an
+  // approval after the last push is required), so the gate reports the advisory
+  // outcome instead of "approved" — that is the regression signal for this case.
+  const A = 'a'.repeat(40);
+  const B = 'b'.repeat(40);
+  const result = gate({
+    files: [[{ filename: 'site/index.html' }]],
+    pull: { changed_files: 1, head: { sha: B } },
+    reviews: [review('qiffang', 'APPROVED', A)],
+    collaborators: [[{ login: 'qiffang', permissions: { push: true } }]],
+    head: B,
+    authorType: 'User',
+    authorLogin: 'srstack',
+  });
+  assert.equal(result.outcome, 'approval');
+  assert.deepEqual(result.approved, []);
+});
+
 test('the gate reports every outcome, retries the unverifiable one, and treats approval as advisory', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'publication-gate-cli-'));
   t.after(() => rm(directory, { recursive: true, force: true }));

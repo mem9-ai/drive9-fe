@@ -104,12 +104,18 @@ export function changedPaths(files, pull, head) {
 //   'approval'    — a privileged change without an approval: advisory
 //   'unverifiable'— the file list cannot be trusted yet, retry
 //
-// The approval outcome is advisory: merging is blocked by the repository's
-// required reviews, which GitHub clears the moment a reviewer approves, so the
-// check must not go red for a state GitHub already handles — that would leave a
-// red check nobody can clear without a manual re-run. The check stays fail-closed
-// where it is the only guard: an untrustworthy listing, malformed metadata, and
-// the artifact-only path rule.
+// The approval outcome is advisory because GitHub already enforces it on the
+// latest head: `main` requires an approving review, dismisses stale approvals
+// (`dismiss_stale_reviews`) and requires an approval after the last push
+// (`require_last_push_approval`). An approval of an earlier commit therefore
+// stops counting there, so approve-A-then-push-B cannot merge, and the check
+// must not add a red state that only a manual re-run could clear.
+//
+// This module still reports the exact-head requirement (`approvedLogins` rejects
+// an approval of an earlier commit, and the hint names the head), so a removed or
+// loosened protection shows up here rather than passing silently. The check stays
+// fail-closed where it is the only guard: an untrustworthy listing, malformed
+// metadata and the artifact-only path rule.
 // A stale head, a truncated listing or malformed pull metadata is an expected
 // condition, not an exception: `gate` returns `unverifiable` with the reason, so
 // a programmatic caller never has to catch to learn "retry".
