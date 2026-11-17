@@ -72,22 +72,14 @@ const PUBLISHED_CODE = [
   CONSOLE_SIGNATURE,
 ];
 
-// The Netlify publish directory, minus the release binaries the redirect makes
-// unreachable. One prefix, so a file added anywhere under `site/` is gated
-// without editing this module.
+// The Netlify publish directory. One prefix, so a file added anywhere under it is
+// gated without editing this module.
 const PUBLISH_ROOT = 'site/';
-const UNREACHABLE_RELEASES = 'site/releases/';
-
-export const isPublishedPath = path =>
-  path.startsWith(PUBLISH_ROOT) && !path.startsWith(UNREACHABLE_RELEASES);
 
 // Imported by the approval exemption and by the trusted validator, so the two
 // halves of the exemption cannot disagree about which paths they cover.
 export const isConsoleArtifactPath = path =>
   path.startsWith(CONSOLE_ARTIFACT_DIRECTORY) || path === CONSOLE_MANIFEST || path === CONSOLE_SIGNATURE;
-
-// Precomputed once: this predicate runs over every changed path.
-const SITE_DEPENDENCY_FILES = DEPENDENCY_FILES.map(name => `site/${name}`);
 
 // Netlify deploys functions from the base directory without any configuration:
 // the defaults are `netlify/functions` and `netlify/edge-functions` resolved
@@ -99,37 +91,31 @@ const SITE_DEPENDENCY_FILES = DEPENDENCY_FILES.map(name => `site/${name}`);
 const FUNCTION_DIRECTORIES = [
   'netlify/functions',
   'netlify/edge-functions',
-  'site/netlify/functions',
-  'site/netlify/edge-functions',
 ];
 
 const DIRECTORY_PREFIXES = [
   'scripts/',
   '.github/workflows/',
   CONSOLE_ARTIFACT_DIRECTORY,
+  PUBLISH_ROOT,
   ...FUNCTION_DIRECTORIES.map(directory => `${directory}/`),
 ];
 
 const EXACT_PATHS = new Set([
   'netlify.toml',
-  'site/netlify.toml',
   ...PUBLISHED_CODE,
   ...DEPENDENCY_FILES,
-  ...SITE_DEPENDENCY_FILES,
 ]);
 
 export const privilegedBuildSurface = path =>
-  EXACT_PATHS.has(path) ||
-  isPublishedPath(path) ||
-  DIRECTORY_PREFIXES.some(prefix => path.startsWith(prefix));
+  EXACT_PATHS.has(path) || DIRECTORY_PREFIXES.some(prefix => path.startsWith(prefix));
 
-// One sample per directory prefix plus every exact path. Published files under
-// `site/` are covered by the prefix, so they need no separate samples. The
-// predicate test iterates this list, so a path added to any canonical set is
-// pinned.
+// One sample per directory prefix plus every exact path. The predicate test
+// iterates this list, so a path added to any canonical set is pinned, and the
+// published-tree test walks `site/` for anything the prefix might miss.
 const PREFIX_SAMPLES = DIRECTORY_PREFIXES.map(prefix => `${prefix}hello.mjs`);
 
-export const PRIVILEGED_EXAMPLES = [...PREFIX_SAMPLES, 'site/index.html', 'site/tidb-logo.svg', ...EXACT_PATHS];
+export const PRIVILEGED_EXAMPLES = [...PREFIX_SAMPLES, ...EXACT_PATHS];
 
 export const UNCHANGED = 'Build surface unchanged.';
 

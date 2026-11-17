@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
-import { readdirSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import {
   CONSOLE_ARTIFACT_DIRECTORY,
   CONSOLE_MANIFEST,
+  CONSOLE_SIGNATURE,
   isConsoleArtifactPath,
   PRIVILEGED_EXAMPLES,
   privilegedBuildSurface,
@@ -37,10 +38,10 @@ test('the changed subset keeps every privileged path, including both sides of a 
   );
 });
 
-test('every published file is gated, except the release blobs the redirect hides', () => {
-  // Netlify serves the whole `site/` directory on the origin that holds the Console
-  // cookies, so a file added anywhere under it must need the same approval — the
-  // walk covers every current file and therefore every future one.
+test('every published file is gated, and the release redirect is pinned', () => {
+  // Netlify serves the whole `site/` directory on the origin that holds the
+  // Console cookies, so a file added anywhere under it must need the same
+  // approval — the walk covers every current file and therefore every future one.
   const siteRoot = fileURLToPath(new URL('../site', import.meta.url));
   const walk = (prefix = '') => readdirSync(join(siteRoot, prefix), { withFileTypes: true }).flatMap(entry => {
     const path = `${prefix}${entry.name}`;
@@ -49,17 +50,19 @@ test('every published file is gated, except the release blobs the redirect hides
   const files = walk();
   assert.ok(files.length > 0);
   for (const path of files) {
-    const gated = privilegedBuildSurface(`site/${path}`);
-    if (path.startsWith('releases/')) {
-      // The redirect in site/netlify.toml serves these from releases.drive9.ai.
-      assert.equal(gated, false, `site/${path} is unreachable and stays ungated`);
-    } else {
-      assert.ok(gated, `site/${path} must be in the surface`);
-    }
+    assert.ok(privilegedBuildSurface(`site/${path}`), `site/${path} must be in the surface`);
   }
   // Nested files are covered too, not just the top level.
   assert.ok(privilegedBuildSurface('site/docs/nested/new-page.html'));
   assert.ok(privilegedBuildSurface('site/assets/icon.svg'));
+  // The checked-in release binaries are gated like everything else in the publish
+  // directory; the redirect that keeps them off the origin is asserted so it
+  // cannot be removed without this test noticing.
+  assert.ok(privilegedBuildSurface('site/releases/v1.0.0/drive9-linux-amd64'));
+  const netlify = readFileSync(new URL('../site/netlify.toml', import.meta.url), 'utf8');
+  assert.match(netlify, /from = "\/releases\/\*"/);
+  assert.match(netlify, /to = "https:\/\/releases\.drive9\.ai\/latest\/:splat"/);
+  assert.match(netlify, /force = true/);
 });
 
 test('every console-artifact path is also a privileged build path', () => {

@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { generateKeyPairSync } from 'node:crypto';
+import { cp, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { prepareStudio, studioRedirects } from './prepare-studio.mjs';
+import { prepareStudio, studioRedirects, verifyPublishedArtifact } from './prepare-studio.mjs';
+import { signManifest } from './studio-signature.mjs';
 
 test('API and schema proxy rules precede the scoped SPA fallback', () => {
   const rules = studioRedirects('https://api.example.invalid').trim().split('\n');
@@ -102,13 +104,6 @@ test('approved public discovery pages get production canonicals and preview noin
 });
 
 test('the deploy build verifies the publisher signature, not just the checksums', async (t) => {
-  const { generateKeyPairSync } = await import('node:crypto');
-  const { cp, mkdtemp, rm, writeFile } = await import('node:fs/promises');
-  const { tmpdir } = await import('node:os');
-  const { join } = await import('node:path');
-  const { verifyPublishedArtifact } = await import('./prepare-studio.mjs');
-  const { signManifest } = await import('./studio-signature.mjs');
-
   const directory = await mkdtemp(join(tmpdir(), 'deploy-verify-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   await cp(new URL('../vendor/studio', import.meta.url), join(directory, 'vendor/studio'), { recursive: true });

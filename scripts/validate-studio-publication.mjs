@@ -5,10 +5,10 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { realpathSync } from 'node:fs';
-import { studioPublicFile, verifyStudioArtifact } from './studio-artifact.mjs';
+import { studioPublicFile } from './studio-artifact.mjs';
 import { CONSOLE_ARTIFACT_DIRECTORY, CONSOLE_MANIFEST, CONSOLE_SIGNATURE, isConsoleArtifactPath } from './build-surface.mjs';
-import { signatureConfigured, verifyManifestSignature } from './studio-signature.mjs';
-import { prepareStudio } from './prepare-studio.mjs';
+import { signatureConfigured } from './studio-signature.mjs';
+import { prepareStudio, verifyPublishedArtifact } from './prepare-studio.mjs';
 
 // Candidate Git objects are data only. All imports and the site template above/below
 // come from the trusted default-branch checkout, never from the PR tree.
@@ -49,20 +49,10 @@ export async function validateStudioPublication(repository, head, artifactOnly, 
       await mkdir(dirname(destination), { recursive: true });
       await writeFile(destination, git('cat-file', 'blob', object));
     }
-    const consoleDirectory = join(temporary, artifactDirectory);
-    await verifyStudioArtifact(consoleDirectory, join(temporary, CONSOLE_MANIFEST));
-    if (signatureConfigured(publicKey)) {
-      // Provenance: the manifest must carry a signature from the pinned publisher
-      // key, so a compromised publisher app cannot ship an arbitrary bundle with a
-      // self-consistent manifest (#147).
-      await verifyManifestSignature(
-        await readFile(join(temporary, CONSOLE_MANIFEST)),
-        await readFile(join(temporary, CONSOLE_SIGNATURE), 'utf8').catch(() => {
-          throw new Error('Console manifest signature is missing.');
-        }),
-        publicKey,
-      );
-    }
+    // One implementation of "the artifact is checksum-clean and, once a key is
+    // pinned, signed", shared with the deploy build so the two cannot drift.
+    await verifyPublishedArtifact(temporary, publicKey);
+    const consoleDirectory = join(temporary, CONSOLE_ARTIFACT_DIRECTORY);
     const siteDirectory = join(temporary, 'site');
     await cp(fileURLToPath(new URL('../site', import.meta.url)), siteDirectory, { recursive: true });
     await prepareStudio({ consoleDirectory, siteDirectory, apiOrigin: 'https://api.example.invalid' });

@@ -3,6 +3,7 @@ import { isIP } from 'node:net';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verifyStudioArtifact } from './studio-artifact.mjs';
+import { CONSOLE_ARTIFACT_DIRECTORY, CONSOLE_MANIFEST, CONSOLE_SIGNATURE } from './build-surface.mjs';
 import {
   MANIFEST_SIGNATURE_PATH,
   PINNED_PUBLIC_KEY,
@@ -57,17 +58,20 @@ export async function prepareStudio({ consoleDirectory, siteDirectory, apiOrigin
 // not verify against the pinned key, stops the deploy instead of shipping to
 // authenticated users. Exported so the deploy path is covered by a test.
 export async function verifyPublishedArtifact(root, publicKey = PINNED_PUBLIC_KEY) {
-  const manifest = resolve(root, 'vendor/studio-build.json');
-  await verifyStudioArtifact(resolve(root, 'vendor/studio'), manifest);
+  const manifest = resolve(root, CONSOLE_MANIFEST);
+  await verifyStudioArtifact(resolve(root, CONSOLE_ARTIFACT_DIRECTORY), manifest);
   if (!signatureConfigured(publicKey)) return;
   // Read the signature separately so its absence is reported as a missing
-  // signature rather than as a missing build output by the caller's ENOENT branch.
-  const signature = await readFile(resolve(root, MANIFEST_SIGNATURE_PATH), 'utf8').catch(() => {
-    throw new Error(
-      `${MANIFEST_SIGNATURE_PATH} is missing: a pinned signing key requires every publication to be signed.`,
-    );
-  });
-  await verifyManifestSignature(await readFile(manifest), signature, publicKey);
+  // signature rather than by the caller's generic ENOENT branch, and so a real
+  // filesystem error (EACCES, EISDIR) still surfaces as itself.
+  let signature;
+  try {
+    signature = await readFile(resolve(root, CONSOLE_SIGNATURE), 'utf8');
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+    throw new Error(`${CONSOLE_SIGNATURE} is missing: a pinned signing key requires every publication to be signed.`);
+  }
+  verifyManifestSignature(await readFile(manifest), signature, publicKey);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
