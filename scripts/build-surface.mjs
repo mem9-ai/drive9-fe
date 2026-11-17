@@ -48,32 +48,14 @@ export const CONSOLE_MANIFEST = 'vendor/studio-build.json';
 // publisher pull request can carry it.
 export const CONSOLE_SIGNATURE = 'vendor/studio-build.json.sig';
 
-// What the site ships as code rather than as text: the installers (run on the
-// visitor's machine) and the Console bundle with its provenance manifest (served
-// to the browser, published by automation). These are not executed by the build,
-// but a change to them changes what every visitor runs, so they need the same
-// maintainer approval.
-//
-// None of the site's published files is inert content: `site/*.html` can carry
-// inline script, `skill.md` is a set of instructions an agent follows,
-// `site/manifest/**` tells the CLI which endpoints and regions to trust, and
-// `site/_headers` decides which origins may read the credentialed responses
-// served beside it. Each decides what visitors and agents execute or may read, so
-// each carries the same approval requirement. Pages match by pattern, so a page
-// added later is gated without editing this file, and a test walks `site/` so an
-// unlisted page cannot slip through.
-//
-// `site/releases/**` (checked-in binaries) is not here either, and does not need
-// to be: `/releases/*` is redirected to releases.drive9.ai with `force = true` in
-// `site/netlify.toml`, so those files are unreachable in production. The redirect
-// is what protects them, and that file is in the surface.
-const PUBLISHED_CODE = [
-  CONSOLE_MANIFEST,
-  CONSOLE_SIGNATURE,
-];
-
 // The Netlify publish directory. One prefix, so a file added anywhere under it is
-// gated without editing this module.
+// gated without editing this module: Netlify serves the whole directory verbatim
+// on the origin that holds the Console cookies, so `site/*.html` (inline script),
+// `site/skill.md` (instructions an agent follows), `site/manifest/**` (the CLI's
+// endpoint and region trust anchors), `site/_headers` (which origins may read the
+// credentialed responses) and the checked-in `site/releases/**` binaries are all
+// part of what visitors and agents run or read. A test walks the directory, so a
+// file added later cannot slip through.
 const PUBLISH_ROOT = 'site/';
 
 // Imported by the approval exemption and by the trusted validator, so the two
@@ -83,11 +65,9 @@ export const isConsoleArtifactPath = path =>
 
 // Netlify deploys functions from the base directory without any configuration:
 // the defaults are `netlify/functions` and `netlify/edge-functions` resolved
-// against the base directory, which is `site` here. A pull request that drops a
-// file under either path gets code running in the deployed site, with the site's
-// environment, without touching any other privileged path — so those
-// directories are part of the surface. The repository-root variants are listed
-// too: they are the same defaults if the base directory ever becomes the root.
+// against the base directory. The base directory here is `site`, which
+// PUBLISH_ROOT already covers, so only the repository-root variants are listed:
+// they are the same defaults if the base directory ever becomes the root.
 const FUNCTION_DIRECTORIES = [
   'netlify/functions',
   'netlify/edge-functions',
@@ -103,7 +83,10 @@ const DIRECTORY_PREFIXES = [
 
 const EXACT_PATHS = new Set([
   'netlify.toml',
-  ...PUBLISHED_CODE,
+  // The Console bundle and its provenance files live outside the publish
+  // directory, so they are listed here rather than covered by PUBLISH_ROOT.
+  CONSOLE_MANIFEST,
+  CONSOLE_SIGNATURE,
   ...DEPENDENCY_FILES,
 ]);
 

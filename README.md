@@ -65,7 +65,7 @@ Before declaring publication operational, an administrator must configure `main`
 - enable **dismiss stale approvals** and **require approval after the last push**, so the
   required review always applies to the head that would merge. Without both, an approval
   of an earlier commit stays valid and a later push (a page, an SVG, a build script) would
-  merge unreviewed; the check reports that mismatch but does not fail on it;
+  merge unreviewed — the check fails closed on that mismatch as well;
 - keep CODEOWNERS `require_code_owner_reviews` off if only one approval is wanted;
   `.github/CODEOWNERS` is coarse (one rule per privileged area) and only drives review
   requests — the enforced path list is `scripts/build-surface.mjs`.

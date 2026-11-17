@@ -4,12 +4,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verifyStudioArtifact } from './studio-artifact.mjs';
 import { CONSOLE_ARTIFACT_DIRECTORY, CONSOLE_MANIFEST, CONSOLE_SIGNATURE } from './build-surface.mjs';
-import {
-  MANIFEST_SIGNATURE_PATH,
-  PINNED_PUBLIC_KEY,
-  signatureConfigured,
-  verifyManifestSignature,
-} from './studio-signature.mjs';
+import { PINNED_PUBLIC_KEY, signatureConfigured, verifyManifestSignature } from './studio-signature.mjs';
 import { prepareDiscovery } from './prepare-discovery.mjs';
 
 export function studioRedirects(apiOrigin) {
@@ -79,7 +74,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   try {
     await verifyPublishedArtifact(root);
     await prepareStudio({
-      consoleDirectory: resolve(root, 'vendor/studio'),
+      consoleDirectory: resolve(root, CONSOLE_ARTIFACT_DIRECTORY),
       siteDirectory: resolve(root, 'site'),
       apiOrigin: process.env.STUDIO_API_ORIGIN,
       context:process.env.CONTEXT || 'deploy-preview',

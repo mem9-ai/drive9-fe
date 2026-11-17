@@ -75,6 +75,7 @@ test('every console-artifact path is also a privileged build path', () => {
     `${CONSOLE_ARTIFACT_DIRECTORY}assets/app.js`,
     `${CONSOLE_ARTIFACT_DIRECTORY}discover/index.html`,
     CONSOLE_MANIFEST,
+    CONSOLE_SIGNATURE,
   ];
   for (const path of positives) {
     assert.ok(isConsoleArtifactPath(path), `${path} must be the artifact`);

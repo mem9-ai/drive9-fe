@@ -105,9 +105,9 @@ test('changed paths include both sides of a rename and require a complete list',
 
 test('an approval of an earlier commit does not authorize the new head', () => {
   // Approve-A-then-push-B: the exact-head check must not treat A's approval as
-  // B's. Enforcing it is GitHub's job (stale approvals are dismissed and an
-  // approval after the last push is required), so the gate reports the advisory
-  // outcome instead of "approved" — that is the regression signal for this case.
+  // B's. GitHub also dismisses stale approvals and requires one after the last
+  // push, so the gate reports the approval-required outcome instead of "approved"
+  // — that is the regression signal if a setting is removed.
   const A = 'a'.repeat(40);
   const B = 'b'.repeat(40);
   const result = gate({
@@ -175,7 +175,7 @@ test('the gate reports every outcome, retries the unverifiable one, and fails cl
   assert.equal(await readFile(pathsOut, 'utf8'), 'vendor/studio/index.html\nvendor/studio-build.json\n');
 
   // The same files from any other app, or mixed with code: not exempt, so the
-  // outcome is the advisory approval one rather than a pass through the exemption.
+  // outcome is the fail-closed approval one rather than a pass through the exemption.
   const otherApp = await run(['vendor/studio/index.html'], { authorType: 'Bot', authorLogin: 'dependabot[bot]', reviewsPath: none });
   assert.equal(otherApp.status, 1);
   assert.match(otherApp.stdout, /Build surface changed \(approval\)/);
