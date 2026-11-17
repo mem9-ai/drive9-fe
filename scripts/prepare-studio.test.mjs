@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { generateKeyPairSync } from 'node:crypto';
+import { cp, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { prepareStudio, studioRedirects } from './prepare-studio.mjs';
+import { prepareStudio, studioRedirects, verifyPublishedArtifact } from './prepare-studio.mjs';
+import { signManifest } from './studio-signature.mjs';
 
 test('API and schema proxy rules precede the scoped SPA fallback', () => {
   const rules = studioRedirects('https://api.example.invalid').trim().split('\n');
@@ -99,4 +101,35 @@ test('approved public discovery pages get production canonicals and preview noin
   let html=await readFile(join(options.siteDirectory,'studio/discover/index.html'),'utf8');assert.match(html,/index,follow/);assert.match(html,/rel="canonical" href="https:\/\/drive9.ai\/studio\/discover\//);
   assert.match(await readFile(join(options.siteDirectory,'sitemap.xml'),'utf8'),/studio\/discover\//);
   await prepareStudio({...options,context:'deploy-preview'});html=await readFile(join(options.siteDirectory,'studio/discover/index.html'),'utf8');assert.match(html,/noindex,follow/);assert.ok(!html.includes('rel="canonical"'));
+});
+
+test('the deploy build verifies the publisher signature, not just the checksums', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'deploy-verify-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  await cp(new URL('../vendor/studio', import.meta.url), join(directory, 'vendor/studio'), { recursive: true });
+  await cp(new URL('../vendor/studio-build.json', import.meta.url), join(directory, 'vendor/studio-build.json'));
+  const manifest = join(directory, 'vendor/studio-build.json');
+  const signature = join(directory, 'vendor/studio-build.json.sig');
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const pinned = publicKey.export({ type: 'spki', format: 'pem' });
+
+  // No pin: checksums only, exactly the behaviour before signing existed.
+  await verifyPublishedArtifact(directory, '');
+
+  // Pinned: a missing signature stops the deploy with a signature-specific message,
+  // not the generic "build output is missing" one.
+  await assert.rejects(verifyPublishedArtifact(directory, pinned), /is missing: a pinned signing key requires/);
+
+  // A signature from the pinned key deploys.
+  await writeFile(signature, signManifest(await readFile(manifest), privateKey));
+  await verifyPublishedArtifact(directory, pinned);
+
+  // A signature over different bytes stops it.
+  await writeFile(signature, signManifest(Buffer.from('{"files":{}}'), privateKey));
+  await assert.rejects(verifyPublishedArtifact(directory, pinned), /does not match the pinned publisher key/);
+
+  // A different key stops it.
+  const other = generateKeyPairSync('ed25519');
+  await writeFile(signature, signManifest(await readFile(manifest), other.privateKey));
+  await assert.rejects(verifyPublishedArtifact(directory, pinned), /does not match the pinned publisher key/);
 });

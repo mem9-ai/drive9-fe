@@ -104,13 +104,17 @@ export function changedPaths(files, pull, head) {
 //   'approval'    — a privileged change without an approval: fail closed
 //   'unverifiable'— the file list cannot be trusted yet, retry
 //
-// The approval outcome fails closed: with no approving review on this exact head
-// the required check is red, so a privileged change cannot merge on the strength
-// of a same-named check run alone. The repository's required reviews are the
-// first gate; this is the second, and neither alone is trusted. An approval does
-// not re-run this workflow (a review-submission event would run the candidate's
-// workflow file and could mint its own passing check), so the check is re-run
-// after the approval — the hint says so.
+// The approval outcome fails closed. The repository's required review is the
+// first gate, but on its own it counts any actor with write permission — which
+// includes an installed GitHub App that can merge pull requests, and such an app
+// could approve an external PR touching the published surface and never touch the
+// artifact paths that would otherwise restrict it. This check is the second gate
+// and only accepts a human collaborator with write access on this exact head, so
+// an app approval cannot satisfy it.
+//
+// Because a review-submission event would run the candidate's workflow file and
+// could mint its own passing check, approving does not re-run this workflow: the
+// hint says to re-run it after the approval, and the run then sees the review.
 // A stale head, a truncated listing or malformed pull metadata is an expected
 // condition, not an exception: `gate` returns `unverifiable` with the reason, so
 // a programmatic caller never has to catch to learn "retry".
@@ -192,7 +196,8 @@ if (invokedDirectly()) {
           } else if (result.outcome === 'approved') {
             console.log(`Approved by ${result.approved.join(', ')} on this head.`);
           } else {
-            // Fail closed: the check is a gate of its own, not a comment.
+            // Fail closed: this check is what keeps an app approval from standing in
+            // for a human one, so it must not report success here.
             for (const line of APPROVAL_HINT) console.error(line);
             process.exitCode = 1;
           }

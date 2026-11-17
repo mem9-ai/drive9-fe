@@ -103,6 +103,26 @@ test('changed paths include both sides of a rename and require a complete list',
   assert.throws(() => changedPaths(files, { changed_files: 2 }, HEAD), /changed_files or head\.sha/);
 });
 
+test('an approval of an earlier commit does not authorize the new head', () => {
+  // Approve-A-then-push-B: the exact-head check must not treat A's approval as
+  // B's. GitHub also dismisses stale approvals and requires one after the last
+  // push, so the gate reports the approval-required outcome instead of "approved"
+  // — that is the regression signal if a setting is removed.
+  const A = 'a'.repeat(40);
+  const B = 'b'.repeat(40);
+  const result = gate({
+    files: [[{ filename: 'site/index.html' }]],
+    pull: { changed_files: 1, head: { sha: B } },
+    reviews: [review('qiffang', 'APPROVED', A)],
+    collaborators: [[{ login: 'qiffang', permissions: { push: true } }]],
+    head: B,
+    authorType: 'User',
+    authorLogin: 'srstack',
+  });
+  assert.equal(result.outcome, 'approval');
+  assert.deepEqual(result.approved, []);
+});
+
 test('the gate reports every outcome, retries the unverifiable one, and fails closed on approval', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'publication-gate-cli-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
@@ -124,19 +144,18 @@ test('the gate reports every outcome, retries the unverifiable one, and fails cl
 
   // Nothing privileged changed: pass without looking at reviews, and still hand
   // the validation step the full changed-file list.
-  const unchanged = await run(['site/styles.css']);
+  const unchanged = await run(['docs/notes.md']);
   assert.equal(unchanged.status, 0);
   assert.equal(unchanged.stdout.trim(), 'Build surface unchanged.');
-  assert.equal(await readFile(pathsOut, 'utf8'), 'site/styles.css\n');
+  assert.equal(await readFile(pathsOut, 'utf8'), 'docs/notes.md\n');
 
   // Privileged change with an approval on this head: pass.
   const approved = await run(['scripts/build-surface.mjs']);
   assert.equal(approved.status, 0);
   assert.match(approved.stdout, /Approved by mornyx/);
 
-  // Privileged change without an approval: the check fails closed. The repository's
-  // required reviews are the first gate; this check is the second, and neither is
-  // trusted on its own.
+  // Privileged change without an approval: fail closed, so an app approval (which
+  // GitHub counts as a write-permission review) cannot satisfy this check.
   const none = join(directory, 'empty.json');
   await writeFile(none, '[]');
   const rejected = spawnSync(process.execPath, [cli, 'gate', '--files', files, '--pull', pull,
@@ -156,7 +175,7 @@ test('the gate reports every outcome, retries the unverifiable one, and fails cl
   assert.equal(await readFile(pathsOut, 'utf8'), 'vendor/studio/index.html\nvendor/studio-build.json\n');
 
   // The same files from any other app, or mixed with code: not exempt, so the
-  // outcome is the advisory approval one rather than a pass through the exemption.
+  // outcome is the fail-closed approval one rather than a pass through the exemption.
   const otherApp = await run(['vendor/studio/index.html'], { authorType: 'Bot', authorLogin: 'dependabot[bot]', reviewsPath: none });
   assert.equal(otherApp.status, 1);
   assert.match(otherApp.stdout, /Build surface changed \(approval\)/);

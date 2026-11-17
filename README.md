@@ -30,10 +30,17 @@ remain in `site/`; only the Console's static output is copied under `/studio/`.
 
 The source repository's **Publish Studio Console** workflow uses a dedicated GitHub App
 installed only on this repository, with Contents and Pull requests write plus Checks read. It updates the
-`automation/studio-console` branch, waits for the required check, and merges its artifact PR.
+`automation/studio-console` branch and opens the artifact PR; the merge needs a maintainer approval
+like every other PR, because an App approval cannot satisfy the publication gate.
 The **Studio artifact** check in this repository independently validates checksums, exact
 source/build metadata, allowed public files, common credential markers, and website routes.
-Generated publication PRs may change only `vendor/studio/` and `vendor/studio-build.json`.
+Generated publication PRs may change only `vendor/studio/`, `vendor/studio-build.json` and the
+detached `vendor/studio-build.json.sig`.
+The Netlify build verifies the same signature before it publishes (`prepare-studio.mjs`), so an
+artifact that reaches a deploy revision without a valid signature stops the deploy rather than
+shipping to authenticated users. The build serves the whole `site/` directory, which is why every file under it — not only the
+top-level HTML pages, and including the checked-in release binaries — is part of the approval
+surface.
 The check has no deployment credentials and runs for every PR, including fork PRs.
 It uses `pull_request_target` and explicitly checks out the immutable trusted default-branch
 revision. It reads candidate Git blobs at the event's exact head SHA as data: it never
@@ -55,16 +62,27 @@ Before declaring publication operational, an administrator must configure `main`
   listing, so an `author_association` of `MEMBER`/`COLLABORATOR` alone is not enough.
   No App bypass and no administrator exemption, so the automated publication PR from
   `mem9-studio-publisher[bot]` waits for a human approval like every other PR;
+- enable **dismiss stale approvals** and **require approval after the last push**, so the
+  required review always applies to the head that would merge. Without both, an approval
+  of an earlier commit stays valid and a later push (a page, an SVG, a build script) would
+  merge unreviewed — the check fails closed on that mismatch as well;
 - keep CODEOWNERS `require_code_owner_reviews` off if only one approval is wanted;
   `.github/CODEOWNERS` is coarse (one rule per privileged area) and only drives review
   requests — the enforced path list is `scripts/build-surface.mjs`.
 
-The approval requirement is the first gate and the **Studio artifact** check is the second:
-the check fails closed when the exact head has no approving review, so a same-named check
-run cannot stand in for a review. Because a review-submission event would run the
-candidate's workflow file, approving does **not** re-run the check; re-run *Trusted Studio
-publication validation* for the branch after approving, and the check turns green on that
-same head. These are GitHub settings; this workflow file alone does not enable protection.
+The required review is the first gate and the **Studio artifact** check is the second. The
+check fails closed when the exact head has no approving review, because GitHub's required
+review alone counts any actor with write permission — including an installed GitHub App, which
+could approve an external PR that changes the published surface while staying clear of the
+artifact paths that would restrict its own PRs. The check accepts only a human collaborator
+with write access on that exact head, so an app approval cannot stand in for a review.
+
+Approving does not re-run the check: a review-submission event would run the candidate's
+workflow file, which is how a candidate could mint its own passing check. Re-run *Trusted
+Studio publication validation* after approving, and it turns green on the same head. If that
+manual step is unwanted, the alternative is `require_code_owner_reviews: true` with a
+catch-all `CODEOWNERS` rule — apps cannot satisfy CODEOWNERS — at the cost of requiring a code
+owner's approval. These are GitHub settings; this workflow file alone does not enable protection.
 Confirm the live settings and an App-authored PR before declaring automatic publication
 operational.
 

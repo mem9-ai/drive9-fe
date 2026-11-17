@@ -3,6 +3,8 @@ import { isIP } from 'node:net';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verifyStudioArtifact } from './studio-artifact.mjs';
+import { CONSOLE_ARTIFACT_DIRECTORY, CONSOLE_MANIFEST, CONSOLE_SIGNATURE } from './build-surface.mjs';
+import { PINNED_PUBLIC_KEY, signatureConfigured, verifyManifestSignature } from './studio-signature.mjs';
 import { prepareDiscovery } from './prepare-discovery.mjs';
 
 export function studioRedirects(apiOrigin) {
@@ -45,12 +47,34 @@ export async function prepareStudio({ consoleDirectory, siteDirectory, apiOrigin
   await prepareDiscovery(destination, siteDirectory, context);
 }
 
+// The deploy build is the last place the artifact can be checked before it is
+// served, so it verifies the publisher signature as well as the checksums: an
+// artifact that reached this revision without a signature, or with one that does
+// not verify against the pinned key, stops the deploy instead of shipping to
+// authenticated users. Exported so the deploy path is covered by a test.
+export async function verifyPublishedArtifact(root, publicKey = PINNED_PUBLIC_KEY) {
+  const manifest = resolve(root, CONSOLE_MANIFEST);
+  await verifyStudioArtifact(resolve(root, CONSOLE_ARTIFACT_DIRECTORY), manifest);
+  if (!signatureConfigured(publicKey)) return;
+  // Read the signature separately so its absence is reported as a missing
+  // signature rather than by the caller's generic ENOENT branch, and so a real
+  // filesystem error (EACCES, EISDIR) still surfaces as itself.
+  let signature;
+  try {
+    signature = await readFile(resolve(root, CONSOLE_SIGNATURE), 'utf8');
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+    throw new Error(`${CONSOLE_SIGNATURE} is missing: a pinned signing key requires every publication to be signed.`);
+  }
+  verifyManifestSignature(await readFile(manifest), signature, publicKey);
+}
+
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const root = fileURLToPath(new URL('../', import.meta.url));
   try {
-    await verifyStudioArtifact(resolve(root, 'vendor/studio'), resolve(root, 'vendor/studio-build.json'));
+    await verifyPublishedArtifact(root);
     await prepareStudio({
-      consoleDirectory: resolve(root, 'vendor/studio'),
+      consoleDirectory: resolve(root, CONSOLE_ARTIFACT_DIRECTORY),
       siteDirectory: resolve(root, 'site'),
       apiOrigin: process.env.STUDIO_API_ORIGIN,
       context:process.env.CONTEXT || 'deploy-preview',

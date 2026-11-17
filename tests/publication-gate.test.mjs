@@ -187,7 +187,7 @@ test('a pinned publisher key makes the manifest signature mandatory (#147)', asy
   manifest.files = await studioHashes(consoleDirectory);
   await writeFile(manifestPath, JSON.stringify(manifest));
   commit();
-  await assert.rejects(gate(true, pinned), /signature is missing/);
+  await assert.rejects(gate(true, pinned), /is missing: a pinned signing key/);
 
   // A signature from the pinned key: accepted.
   const manifestBytes = await readFile(manifestPath);

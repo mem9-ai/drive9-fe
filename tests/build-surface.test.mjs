@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
-import { readdirSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import {
   CONSOLE_ARTIFACT_DIRECTORY,
   CONSOLE_MANIFEST,
+  CONSOLE_SIGNATURE,
   isConsoleArtifactPath,
   PRIVILEGED_EXAMPLES,
   privilegedBuildSurface,
@@ -15,7 +18,7 @@ test('the privileged surface is exactly what the project ships or executes', () 
   for (const path of PRIVILEGED_EXAMPLES) {
     assert.ok(privilegedBuildSurface(path), path);
   }
-  for (const path of ['site/styles.css', 'site/robots.txt', 'tests/build-surface.test.mjs', 'README.md']) {
+  for (const path of ['tests/build-surface.test.mjs', 'README.md', 'docs/notes.md']) {
     assert.ok(!privilegedBuildSurface(path), path);
   }
 });
@@ -24,10 +27,10 @@ test('the changed subset keeps every privileged path, including both sides of a 
   // GitHub reports the new and the previous name of a rename, so a privileged file
   // cannot be moved out of the gate by renaming it.
   assert.equal(UNCHANGED, 'Build surface unchanged.');
-  assert.deepEqual(changedSurface(['site/styles.css', 'README.md']), []);
+  assert.deepEqual(changedSurface(['README.md', 'docs/notes.md']), []);
   assert.deepEqual(
     changedSurface(['scripts/evil.mjs', 'site/styles.css', 'site/package.json']),
-    ['scripts/evil.mjs', 'site/package.json'],
+    ['scripts/evil.mjs', 'site/styles.css', 'site/package.json'],
   );
   assert.deepEqual(
     changedSurface(['docs/notes.md', 'scripts/prepare-studio.mjs', 'vendor/studio/x.js']),
@@ -35,14 +38,31 @@ test('the changed subset keeps every privileged path, including both sides of a 
   );
 });
 
-test('every published page is gated, including pages added later', () => {
-  // The pattern gates a page added later without an edit here; CODEOWNERS stays
-  // coarse on purpose (it drives review requests, not the merge decision).
-  const pages = readdirSync(new URL('../site', import.meta.url)).filter(name => name.endsWith('.html'));
-  assert.ok(pages.length > 0);
-  for (const page of pages) {
-    assert.ok(privilegedBuildSurface(`site/${page}`), `site/${page} must be in the surface`);
+test('every published file is gated, and the release redirect is pinned', () => {
+  // Netlify serves the whole `site/` directory on the origin that holds the
+  // Console cookies, so a file added anywhere under it must need the same
+  // approval — the walk covers every current file and therefore every future one.
+  const siteRoot = fileURLToPath(new URL('../site', import.meta.url));
+  const walk = (prefix = '') => readdirSync(join(siteRoot, prefix), { withFileTypes: true }).flatMap(entry => {
+    const path = `${prefix}${entry.name}`;
+    return entry.isDirectory() ? walk(`${path}/`) : [path];
+  });
+  const files = walk();
+  assert.ok(files.length > 0);
+  for (const path of files) {
+    assert.ok(privilegedBuildSurface(`site/${path}`), `site/${path} must be in the surface`);
   }
+  // Nested files are covered too, not just the top level.
+  assert.ok(privilegedBuildSurface('site/docs/nested/new-page.html'));
+  assert.ok(privilegedBuildSurface('site/assets/icon.svg'));
+  // The checked-in release binaries are gated like everything else in the publish
+  // directory; the redirect that keeps them off the origin is asserted so it
+  // cannot be removed without this test noticing.
+  assert.ok(privilegedBuildSurface('site/releases/v1.0.0/drive9-linux-amd64'));
+  const netlify = readFileSync(new URL('../site/netlify.toml', import.meta.url), 'utf8');
+  assert.match(netlify, /from = "\/releases\/\*"/);
+  assert.match(netlify, /to = "https:\/\/releases\.drive9\.ai\/latest\/:splat"/);
+  assert.match(netlify, /force = true/);
 });
 
 test('every console-artifact path is also a privileged build path', () => {
@@ -55,6 +75,7 @@ test('every console-artifact path is also a privileged build path', () => {
     `${CONSOLE_ARTIFACT_DIRECTORY}assets/app.js`,
     `${CONSOLE_ARTIFACT_DIRECTORY}discover/index.html`,
     CONSOLE_MANIFEST,
+    CONSOLE_SIGNATURE,
   ];
   for (const path of positives) {
     assert.ok(isConsoleArtifactPath(path), `${path} must be the artifact`);
