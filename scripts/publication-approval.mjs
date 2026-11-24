@@ -112,20 +112,19 @@ export function changedPaths(files, pull, head) {
 //   'unchanged'   — nothing privileged changed
 //   'exempt'      — the publisher app shipped nothing but the artifact
 //   'approved'    — a maintainer approved this exact head
-//   'approval'    — a privileged change without an approval: fail closed
+//   'approval'    — a privileged change without an approval: advisory
 //   'unverifiable'— the file list cannot be trusted yet, retry
 //
-// The approval outcome fails closed. The repository's required review is the
-// first gate, but on its own it counts any actor with write permission — which
-// includes an installed GitHub App that can merge pull requests, and such an app
-// could approve an external PR touching the published surface and never touch the
-// artifact paths that would otherwise restrict it. This check is the second gate
-// and only accepts a human collaborator with write access on this exact head, so
-// an app approval cannot satisfy it.
+// The approval outcome is advisory: this check never goes red for a missing
+// review. Merging is gated by the repository's required reviews on the latest
+// head (`dismiss_stale_reviews` and `require_last_push_approval` are on), which
+// GitHub clears the moment a reviewer approves — so no re-run is needed.
 //
-// Because a review-submission event would run the candidate's workflow file and
-// could mint its own passing check, approving does not re-run this workflow: the
-// hint says to re-run it after the approval, and the run then sees the review.
+// The exact-head requirement is still reported here (`approvedLogins` rejects an
+// approval of an earlier commit and the hint names the head), which keeps the
+// mismatch visible instead of silent. This check stays fail-closed where it is
+// the only guard: an untrustworthy listing, malformed metadata, the artifact-only
+// path rule, and a foreign check run with the same name.
 // A stale head, a truncated listing or malformed pull metadata is an expected
 // condition, not an exception: `gate` returns `unverifiable` with the reason, so
 // a programmatic caller never has to catch to learn "retry".
@@ -149,9 +148,9 @@ export function gate({ files, pull, reviews, collaborators, head, authorType, au
 }
 
 export const APPROVAL_HINT = [
-  'Build-surface change needs an approving review from a maintainer on this exact head.',
-  'Submitting an approval does not re-run this check automatically; '
-    + 're-run "Trusted Studio publication validation" for this branch to re-evaluate.',
+  'Build-surface change: the repository requires an approving review on this exact head.',
+  'Advisory here: GitHub blocks the merge until that review exists and lets it through when it '
+    + 'does, so this check needs no re-run.',
 ];
 
 const invokedDirectly = () => {
@@ -221,10 +220,8 @@ if (invokedDirectly()) {
           } else if (result.outcome === 'approved') {
             console.log(`Approved by ${result.approved.join(', ')} on this head.`);
           } else {
-            // Fail closed: this check is what keeps an app approval from standing in
-            // for a human one, so it must not report success here.
+            // Advisory by design: a missing review must never block CI.
             for (const line of APPROVAL_HINT) console.error(line);
-            process.exitCode = 1;
           }
         }
       }

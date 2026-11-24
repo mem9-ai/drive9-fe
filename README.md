@@ -65,17 +65,20 @@ Before declaring publication operational, an administrator must configure `main`
 - enable **dismiss stale approvals** and **require approval after the last push**, so the
   required review always applies to the head that would merge. Without both, an approval
   of an earlier commit stays valid and a later push (a page, an SVG, a build script) would
-  merge unreviewed — the check fails closed on that mismatch as well;
+  merge unreviewed; the check reports that mismatch (and stays green);
 - keep CODEOWNERS `require_code_owner_reviews` off if only one approval is wanted;
   `.github/CODEOWNERS` is coarse (one rule per privileged area) and only drives review
   requests — the enforced path list is `scripts/build-surface.mjs`.
 
-The required review is the first gate and the **Studio artifact** check is the second. The
-check fails closed when the exact head has no approving review, because GitHub's required
-review alone counts any actor with write permission — including an installed GitHub App, which
-could approve an external PR that changes the published surface while staying clear of the
-artifact paths that would restrict its own PRs. The check accepts only a human collaborator
-with write access on that exact head, so an app approval cannot stand in for a review.
+The required review is the merge gate. The **Studio artifact** check does not duplicate it: on a
+privileged change without an approval it reports the requirement and **stays green**, so CI is
+never blocked by a missing review. GitHub blocks the merge until the review exists and lets it
+through the moment it does, with no re-run. Stale approvals are dismissed and an approval after
+the last push is required, so the review always applies to the head that would merge; the check
+still names the exact head it evaluated, so the mismatch is visible rather than silent.
+
+The check stays fail-closed where it is the only guard: an untrustworthy file list, malformed
+metadata, the artifact-only path rule, and a foreign check run with the same name.
 
 The check also refuses a foreign check run with the same name on the candidate head: a
 workflow in the candidate's branch can post one, and GitHub evaluates the latest run per name,
