@@ -254,3 +254,37 @@ test('only the publisher app publishing nothing but the artifact skips the appro
   assert.equal(botArtifactOnlyPublication(['vendor/studio'], 'Bot', 'mem9-studio-publisher[bot]'), false);
   assert.equal(botArtifactOnlyPublication([], 'Bot', 'mem9-studio-publisher[bot]'), false);
 });
+
+test('a check run that is not the one this workflow registered is refused', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'publication-foreign-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const cli = fileURLToPath(new URL('../scripts/publication-approval.mjs', import.meta.url));
+  const runs = join(directory, 'check-runs.json');
+
+  // Paginated pages, our own run only: accepted.
+  await writeFile(runs, JSON.stringify([[{ id: 111, status: 'in_progress' }]]));
+  const own = spawnSync(process.execPath, [cli, 'foreign-check', '--check-runs', runs, '--check-id', '111'], { encoding: 'utf8' });
+  assert.equal(own.status, 0);
+  assert.match(own.stdout, /No foreign check run/);
+
+  // A second run with the required name means a candidate workflow posted one.
+  await writeFile(runs, JSON.stringify([[{ id: 111 }, { id: 222, conclusion: 'success' }]]));
+  const foreign = spawnSync(process.execPath, [cli, 'foreign-check', '--check-runs', runs, '--check-id', '111'], { encoding: 'utf8' });
+  assert.equal(foreign.status, 1);
+  assert.match(foreign.stderr, /Foreign check run 222/);
+
+  // The comparison is by id, not by type: a string id for our own run is fine.
+  await writeFile(runs, JSON.stringify([{ id: '111' }]));
+  const stringId = spawnSync(process.execPath, [cli, 'foreign-check', '--check-runs', runs, '--check-id', '111'], { encoding: 'utf8' });
+  assert.equal(stringId.status, 0);
+});
+
+test('the workflow refuses a foreign check run before it validates', () => {
+  const workflow = readFileSync(new URL('../.github/workflows/studio-publication.yml', import.meta.url), 'utf8');
+  assert.match(workflow, /check-runs\?check_name=Studio%20artifact&filter=all/);
+  assert.match(workflow, /publication-approval\.mjs foreign-check/);
+  assert.match(workflow, /--check-id "\$CHECK_ID"/);
+  // The probe runs before the validation step, so a foreign run cannot precede a
+  // green result.
+  assert.ok(workflow.indexOf('foreign-check') < workflow.indexOf('Validate candidate data with trusted code'));
+});

@@ -51,6 +51,17 @@ export function approvedLogins(reviews, head, permissions = {}) {
     .sort();
 }
 
+// The required check is identified by name, and a workflow in the candidate's own
+// branch can post a check run with the same name. GitHub evaluates the latest run
+// per name, so a foreign run could stand in for this one. This returns the runs
+// that are not ours, including one posted by a candidate-authored workflow; the
+// workflow turns a non-empty list into a failed check. It cannot catch a run
+// posted after this one finishes, which is why the required review stays the
+// other gate.
+export function foreignCheckRuns(runs, ownId) {
+  return flattenPages(runs).filter(run => run && run.id !== undefined && String(run.id) !== String(ownId));
+}
+
 // The Console publisher app opens artifact-only pull requests and merges them
 // itself (24 of them in the week before this gate was written, every one merged
 // by the app with no review). Requiring a maintainer to approve a minified
@@ -158,9 +169,23 @@ const option = (args, name) => {
 
 if (invokedDirectly()) {
   const [command, ...args] = process.argv.slice(2);
-  if (command !== 'gate') {
+  if (command === 'foreign-check') {
+    const runs = foreignCheckRuns(readJson(option(args, '--check-runs')), option(args, '--check-id'));
+    if (runs.length === 0) {
+      console.log('No foreign check run on this head.');
+    } else {
+      for (const run of runs) {
+        console.error(
+          `Foreign check run ${run.id} (${run.conclusion ?? run.status ?? 'unknown'}) on this head: `
+            + 'the required check must come from this workflow.',
+        );
+      }
+      process.exitCode = 1;
+    }
+  } else if (command !== 'gate') {
     console.error('usage: publication-approval.mjs gate --files F --pull P --reviews R '
       + '--collaborators C --head SHA --author-type T --author-login LOGIN [--paths-out F]');
+    console.error('       publication-approval.mjs foreign-check --check-runs F --check-id ID');
     process.exitCode = 2;
   } else {
     try {

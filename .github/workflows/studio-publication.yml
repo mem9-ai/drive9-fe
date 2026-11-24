@@ -97,6 +97,22 @@ jobs:
             sleep 3
           done
           exit "$status"
+      - name: Reject a foreign Studio artifact check run on this head
+        if: steps.check.outputs.id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHECK_ID: ${{ steps.check.outputs.id }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # The required check is matched by name, and a workflow in the candidate's
+          # branch could post a run with the same name; GitHub evaluates the latest
+          # run per name. Any run on this head that is not the one registered above
+          # fails the check instead of standing in for it.
+          gh api --paginate --slurp \
+            "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/check-runs?check_name=Studio%20artifact&filter=all&per_page=100" \
+            > "$RUNNER_TEMP/check-runs.json"
+          node scripts/publication-approval.mjs foreign-check \
+            --check-runs "$RUNNER_TEMP/check-runs.json" --check-id "$CHECK_ID"
       - name: Validate candidate data with trusted code
         id: validate
         env:

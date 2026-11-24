@@ -77,8 +77,12 @@ could approve an external PR that changes the published surface while staying cl
 artifact paths that would restrict its own PRs. The check accepts only a human collaborator
 with write access on that exact head, so an app approval cannot stand in for a review.
 
-Approving does not re-run the check: a review-submission event would run the candidate's
-workflow file, which is how a candidate could mint its own passing check. Re-run *Trusted
+The check also refuses a foreign check run with the same name on the candidate head: a
+workflow in the candidate's branch can post one, and GitHub evaluates the latest run per name,
+so any run that is not the one this workflow registered fails the check. That probe cannot see
+a run posted after this workflow finishes, so the required review stays the other gate. The
+complete fix is to post the required check from a dedicated GitHub App and require *that* app's
+check on the branch; that needs an App installation rather than a code change here. Re-run *Trusted
 Studio publication validation* after approving, and it turns green on the same head. If that
 manual step is unwanted, the alternative is `require_code_owner_reviews: true` with a
 catch-all `CODEOWNERS` rule — apps cannot satisfy CODEOWNERS — at the cost of requiring a code
