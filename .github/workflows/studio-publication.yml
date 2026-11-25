@@ -7,10 +7,9 @@ on:
   # `pull_request_review` is deliberately absent: GitHub runs that event with the
   # workflow file from the pull request head, and this workflow issues the
   # required check, so a candidate could register a passing check on itself.
-  # The approval is enforced by the repository's required reviews (with a
-  # code-owner requirement, so a human must approve), which GitHub clears once a
-  # reviewer approves, so this check reports the surface change and does not need
-  # a re-run after an approval.
+  # The approval is enforced by the repository's required reviews instead — with a
+  # code-owner requirement, so a human must approve — and GitHub clears them the
+  # moment a reviewer approves, so this check never needs a re-run after one.
 
 permissions:
   contents: read
@@ -64,10 +63,8 @@ jobs:
           # lives in scripts/publication-check.mjs (`gate`): this step only
           # fetches GitHub's objects, retries a listing that is not trustworthy
           # yet, and forwards the exit status. 0 = pass, 3 = retry, anything else
-          # fails closed. Approval is not decided here: the repository's required
-          # reviews (with a code-owner requirement, so a human must approve) gate
-          # the merge and clear themselves when a reviewer approves, so this check
-          # never needs a manual re-run after an approval.
+          # fails closed. Nothing here decides the merge; the event-level comment
+          # above says where the approval lives.
           status=1
           for attempt in 1 2; do
             gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" > "$RUNNER_TEMP/files.json"

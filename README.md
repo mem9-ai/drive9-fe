@@ -97,8 +97,8 @@ the report come after that read — so such a head can still end green here. Tha
 review is the other gate, and the complete fix is to post this check from a dedicated GitHub App and
 require *that* app's check on the branch — an App installation rather than a code change here.
 
-Because this check only reports, the required review and the other required check are what stand
-between a change and the merge, and GitHub counts an installed App's approval as a
+Because this check does not gate on a review, the required review and the other required check are
+what stand between a change and the merge, and GitHub counts an installed App's approval as a
 write-permission review. `.github/CODEOWNERS` therefore maps every path to the four maintainers
 in one rule, and `main` requires a code-owner review: apps cannot satisfy CODEOWNERS, so one
 maintainer approval covers both requirements with no re-run.

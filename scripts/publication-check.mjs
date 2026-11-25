@@ -9,11 +9,6 @@ import { changedSurface, UNCHANGED } from './build-surface.mjs';
 // checks; this check reports the surface change and fails closed only where it is
 // the only guard: an untrustworthy listing, malformed pull metadata, and a newest
 // check run that is not the one this workflow registered.
-//
-// Earlier revisions also counted approving reviews and exempted artifact-only
-// publications. Both only chose a log line once GitHub enforced the review, and
-// the collaborators read that fed them could fail the check for data that decided
-// nothing, so they are gone.
 
 const readJson = path => JSON.parse(readFileSync(path, 'utf8'));
 
