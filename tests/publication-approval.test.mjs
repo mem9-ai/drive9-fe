@@ -308,8 +308,9 @@ test('the probe trusts only the latest required check run it registered', async 
 
 test('the workflow pins the probe to filter=latest and fails the check when validation is skipped', () => {
   const workflow = readFileSync(new URL('../.github/workflows/studio-publication.yml', import.meta.url), 'utf8');
-  // The run GitHub evaluates is the latest one for that name; earlier attempts of
-  // this workflow must not be mistaken for foreign runs.
+  // `filter=latest` returns the newest run per check suite and name, so this
+  // workflow's own earlier attempts never reach the probe; the query is pinned
+  // because that property lives in the API, not in the reader.
   assert.match(workflow, /check-runs\?check_name=Studio%20artifact&filter=latest/);
   assert.doesNotMatch(workflow, /filter=all/);
   assert.match(workflow, /publication-approval\.mjs foreign-check/);

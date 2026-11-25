@@ -4,6 +4,13 @@ import { changedSurface, isConsoleArtifactPath, UNCHANGED } from './build-surfac
 // Trusted decisions for the Studio publication gate. This logic used to live as
 // inline jq in `.github/workflows/studio-publication.yml`, where no test could
 // reach it; every defect found in earlier reviews lived exactly there.
+//
+// Enforcement: the required check fails closed on an untrustworthy changed-file
+// listing, malformed pull metadata, the artifact-only path rule and a foreign
+// check run with the required name. The review half below (permissionMap,
+// approvedLogins, the collaborator listing) is report-only — it prints who would
+// qualify and never changes the exit status; the merge gate is the repository's
+// required review, which a code-owner requirement keeps human.
 
 const ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
 
@@ -53,8 +60,8 @@ export function approvedLogins(reviews, head, permissions = {}) {
 
 // The required check is identified by name, and a workflow in the candidate's own
 // branch can post a run with the same name. The workflow asks for `filter=latest`,
-// which is the single run GitHub evaluates for that name, and this asserts that
-// the run is the one the workflow registered. A malformed page, an empty listing,
+// which is the newest run per check suite and name, and this asserts that the run
+// is the one the workflow registered. A malformed page, an empty listing,
 // a missing own run or any other id is a failure, not a pass: this check is the
 // only place that name is trusted, so it cannot ignore what it does not recognise.
 // It cannot see a run posted after this one completes, which is the residual the
@@ -133,11 +140,11 @@ export function changedPaths(files, pull, head) {
 // The approval outcome is advisory: this check never goes red for a missing
 // review, so CI is never blocked by one. Everything the review half of this
 // module computes (`permissionMap`, `approvedLogins`, the collaborator fetch) is
-// **report-only** — it is printed, and it never changes the exit status. The
-// merge gate is the repository's required reviews on the latest head
-// (`dismiss_stale_reviews`, `require_last_push_approval`, and Code Owners so the
-// approval is human-only), which GitHub clears the moment a reviewer approves,
-// so no re-run is needed.
+// report-only — printed, and it never changes the exit status. The merge gate is
+// the repository's required reviews on the latest head (`dismiss_stale_reviews`,
+// `require_last_push_approval`, and a code-owner requirement that keeps the
+// approval human), which GitHub clears the moment a reviewer approves, so no
+// re-run is needed.
 //
 // The exact-head requirement is still reported here (`approvedLogins` rejects an
 // approval of an earlier commit and the hint names the head), which keeps the

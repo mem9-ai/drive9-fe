@@ -4,6 +4,6 @@
 # maintainer's. Every rule maps to the same maintainer set, so one approval
 # satisfies both the required review and the code-owner requirement.
 #
-# The enforced path list is scripts/build-surface.mjs; this file is about who
-# reviews, not what is gated.
+# This file is about who reviews; the enforced traversal lives in the workflow and
+# the validator, not in a path list here.
 * @qiffang @srstack @mornyx @mashenjun

@@ -31,7 +31,8 @@ remain in `site/`; only the Console's static output is copied under `/studio/`.
 The source repository's **Publish Studio Console** workflow uses a dedicated GitHub App
 installed only on this repository, with Contents and Pull requests write plus Checks read. It updates the
 `automation/studio-console` branch and opens the artifact PR; the merge needs a maintainer approval
-like every other PR, because an App approval cannot satisfy the publication gate.
+like every other PR, because an App cannot satisfy the CODEOWNERS requirement that the
+required review now includes.
 The **Studio artifact** check in this repository independently validates checksums, exact
 source/build metadata, allowed public files, common credential markers, and website routes.
 Generated publication PRs may change only `vendor/studio/`, `vendor/studio-build.json` and the
@@ -44,9 +45,10 @@ surface.
 The check has no deployment credentials and runs for every PR, including fork PRs.
 It uses `pull_request_target` and explicitly checks out the immutable trusted default-branch
 revision. It reads candidate Git blobs at the event's exact head SHA as data: it never
-checks out or executes candidate scripts/workflows. All bot-authored/updated PRs and the
-managed publication branch are restricted to artifact paths, including changes/deletions of
-validators and workflows. Human code PRs still run ordinary **Website tests** separately.
+checks out or executes candidate scripts/workflows. A publication PR from the publisher app,
+and any PR that touches an artifact path, may change only artifact paths — including the
+validators and workflows, which such a PR may not touch at all. Human code PRs still run
+ordinary **Website tests** separately.
 This workflow declares Checks write, solely to report **Studio artifact** against the
 candidate head (the target event's own SHA is the default branch). A workflow file in a
 candidate branch can declare the same permission and post a run with the same name, which is
@@ -59,31 +61,33 @@ Before declaring publication operational, an administrator must configure `main`
 - require the **Studio artifact** check from the GitHub Actions integration, and **Website
   tests**;
 - require an up-to-date branch (`strict`);
-- require **at least one approving review** from someone with **write access** (`push`,
-  `maintain` or `admin`); the gate checks the same thing against GitHub's collaborators
-  listing, so an `author_association` of `MEMBER`/`COLLABORATOR` alone is not enough.
-  No App bypass and no administrator exemption, so the automated publication PR from
-  `mem9-studio-publisher[bot]` waits for a human approval like every other PR;
+- require **at least one approving review** and enable **Require review from Code Owners**
+  with the catch-all `CODEOWNERS` rule (`* @qiffang @srstack @mornyx @mashenjun`). GitHub
+  counts any actor with write permission as an approver, installed GitHub Apps included,
+  and an App cannot satisfy a CODEOWNERS rule; together the two settings make the required
+  approval human. One maintainer approval covers both, with no App bypass and no
+  administrator exemption, so the automated publication PR from
+  `mem9-studio-publisher[bot]` waits for a human like every other PR;
 - enable **dismiss stale approvals** and **require approval after the last push**, so the
   required review always applies to the head that would merge. Without both, an approval
   of an earlier commit stays valid and a later push (a page, an SVG, a build script) would
-  merge unreviewed; the check reports that mismatch (and stays green);
-- keep CODEOWNERS `require_code_owner_reviews` off if only one approval is wanted;
-  `.github/CODEOWNERS` is coarse (one rule per privileged area) and only drives review
-  requests — the enforced path list is `scripts/build-surface.mjs`.
+  merge unreviewed.
 
 The required review is the merge gate. The **Studio artifact** check does not duplicate it: on a
 privileged change without an approval it reports the requirement and **stays green**, so CI is
-never blocked by a missing review. GitHub blocks the merge until the review exists and lets it
-through the moment it does, with no re-run. Stale approvals are dismissed and an approval after
-the last push is required, so the review always applies to the head that would merge; the check
-still names the exact head it evaluated, so the mismatch is visible rather than silent.
+never blocked by a missing review. GitHub blocks the merge until a human approval exists and lets
+it through the moment it does, with no re-run; stale approvals are dismissed and an approval after
+the last push is required, so the review always applies to the head that would merge. The check
+does not publish the reviewed head: its run carries a status and a conclusion only, and the
+`approval` outcome's hint names the requirement, not a SHA. Its review half (`permissionMap`,
+`approvedLogins`, the collaborators fetch) is report-only and decides nothing.
 
 The check stays fail-closed where it is the only guard: an untrustworthy file list, malformed
 metadata, the artifact-only path rule, and a foreign check run with the same name.
 
 The check also refuses a foreign check run with the same name on the candidate head: a
-workflow in the candidate's branch can post one, and GitHub evaluates the latest run per name,
+workflow in the candidate's branch can post one, and GitHub evaluates the newest run per check
+suite and name,
 so any run that is not the one this workflow registered fails the check. That probe cannot see
 a run posted after this workflow finishes, so the required review stays the other gate. The
 complete fix is to post the required check from a dedicated GitHub App and require *that* app's
@@ -91,9 +95,9 @@ check on the branch; that needs an App installation rather than a code change he
 
 Because this check is advisory for approvals, the review requirement is the only thing standing
 between a change and the merge, and GitHub counts an installed App's approval as a
-write-permission review. Making that gate human-only therefore needs
-`require_code_owner_reviews: true` with the catch-all `CODEOWNERS` rule above — apps cannot
-satisfy CODEOWNERS — and one maintainer approval then covers both requirements with no re-run.
+write-permission review. `.github/CODEOWNERS` therefore maps every path to the four maintainers
+in one rule, and `main` requires a code-owner review: apps cannot satisfy CODEOWNERS, so one
+maintainer approval covers both requirements with no re-run.
 These are GitHub settings; this workflow file alone does not enable protection.
 Confirm the live settings and an App-authored PR before declaring automatic publication
 operational.

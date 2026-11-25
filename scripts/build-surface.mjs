@@ -5,9 +5,10 @@
 // any of these changes code execution in the deploy environment. This module is
 // the single source for the gate in `.github/workflows/studio-publication.yml`.
 //
-// `.github/CODEOWNERS` is coarse on purpose: it drives review requests, while this
-// list is what the workflow enforces. `EXACT_PATHS` and `PREFIX_SAMPLES` are derived
-// from the sets themselves, so the tests cannot drift from the surface.
+// `.github/CODEOWNERS` is coarse on purpose: it decides who reviews, while this
+// list decides what the gate calls a build-surface change. `EXACT_PATHS` and
+// `PREFIX_SAMPLES` are derived from the sets themselves, so the tests cannot drift
+// from the surface.
 // Netlify installs from whichever of these it finds (root or base directory), and
 // a lockfile or registry config decides what the installer downloads. The non-Node
 // manifests are inert for today's static build but are listed so a build command

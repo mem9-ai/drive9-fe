@@ -107,9 +107,10 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           # The required check is matched by name, and a workflow in the candidate's
-          # branch could post a run with the same name. `filter=latest` is the run
-          # GitHub evaluates for that name, so it must be the one registered above;
-          # earlier attempts of this workflow are excluded by construction.
+          # branch could post a run with the same name. `filter=latest` returns the
+          # newest run per check suite and name, so our own earlier attempts are
+          # excluded by construction and the newest run must be the one registered
+          # above.
           gh api --paginate --slurp \
             "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/check-runs?check_name=Studio%20artifact&filter=latest&per_page=100" \
             > "$RUNNER_TEMP/check-runs.json"
