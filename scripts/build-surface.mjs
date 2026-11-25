@@ -35,14 +35,12 @@ const DEPENDENCY_FILES = [
 ];
 
 // The Console artifact lives under one directory plus one provenance manifest.
-// Every consumer derives from these two constants — the exemption predicate, the
-// privileged surface below, the trusted validator's extraction scope, and the
-// tests' corpus of positives and lookalike negatives — so widening the artifact
-// widens all of them in one edit. The quiet failure mode this prevents: a
-// publisher pull request touching only a newly admitted path would read
-// "Build surface unchanged." (the surface is evaluated before the exemption), so
-// the check would go green without any approval and without the validator ever
-// walking that path.
+// Every consumer derives from these constants — the privileged surface below, the
+// trusted validator's extraction scope, and the tests' corpus of positives and
+// lookalike negatives — so widening the artifact widens all of them in one edit.
+// The quiet failure mode this prevents: a path the validator's artifact-only rule
+// admits but the surface does not gate would read "Build surface unchanged.", so a
+// reviewer would never see the report name a path the validator still walks.
 export const CONSOLE_ARTIFACT_DIRECTORY = 'vendor/studio/';
 export const CONSOLE_MANIFEST = 'vendor/studio-build.json';
 // Detached signature over the manifest bytes (#147); part of the artifact so a
@@ -59,8 +57,8 @@ export const CONSOLE_SIGNATURE = 'vendor/studio-build.json.sig';
 // file added later cannot slip through.
 const PUBLISH_ROOT = 'site/';
 
-// Imported by the approval exemption and by the trusted validator, so the two
-// halves of the exemption cannot disagree about which paths they cover.
+// One predicate for the privileged surface and for the validator's artifact-only
+// rule, so the report and the rule cannot disagree about which paths they cover.
 export const isConsoleArtifactPath = path =>
   path.startsWith(CONSOLE_ARTIFACT_DIRECTORY) || path === CONSOLE_MANIFEST || path === CONSOLE_SIGNATURE;
 
@@ -103,6 +101,6 @@ export const PRIVILEGED_EXAMPLES = [...PREFIX_SAMPLES, ...EXACT_PATHS];
 
 export const UNCHANGED = 'Build surface unchanged.';
 
-// The gate consumes these as a module (scripts/publication-approval.mjs); there is
+// The gate consumes these as a module (scripts/publication-check.mjs); there is
 // deliberately no second CLI entry point that could evaluate "changed" on its own.
 export const changedSurface = files => files.filter(privilegedBuildSurface);

@@ -32,16 +32,16 @@ The source repository's **Publish Studio Console** workflow uses a dedicated Git
 installed only on this repository, with Contents and Pull requests write plus Checks read. It updates the
 `automation/studio-console` branch and opens the artifact PR; the merge needs a maintainer approval
 like every other PR, because an App cannot satisfy the CODEOWNERS requirement that the
-required review now includes.
+required review includes.
 The **Studio artifact** check in this repository independently validates checksums, exact
 source/build metadata, allowed public files, common credential markers, and website routes.
 Generated publication PRs may change only `vendor/studio/`, `vendor/studio-build.json` and the
 detached `vendor/studio-build.json.sig`.
 The Netlify build verifies the same signature before it publishes (`prepare-studio.mjs`), so an
 artifact that reaches a deploy revision without a valid signature stops the deploy rather than
-shipping to authenticated users. The build serves the whole `site/` directory, which is why every file under it — not only the
-top-level HTML pages, and including the checked-in release binaries — is part of the approval
-surface.
+shipping to authenticated users. The build serves the whole `site/` directory, which is why every
+file under it — not only the top-level HTML pages, and including the checked-in release binaries —
+is part of the build surface the check names before a reviewer approves.
 The check has no deployment credentials and runs for every PR, including fork PRs.
 It uses `pull_request_target` and explicitly checks out the immutable trusted default-branch
 revision. It reads candidate Git blobs at the event's exact head SHA as data: it never
@@ -52,7 +52,7 @@ ordinary **Website tests** separately.
 This workflow declares Checks write, solely to report **Studio artifact** against the
 candidate head (the target event's own SHA is the default branch). A workflow file in a
 candidate branch can declare the same permission and post a run with the same name, which is
-why the check refuses a foreign run and why the required review is the other gate. The
+why the check fails on a foreign run and why the required review is the other gate. The
 publishing App has Checks read and no Workflows permission; it cannot write this result.
 See GitHub's [trusted-event guidance](https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target).
 
@@ -73,14 +73,15 @@ Before declaring publication operational, an administrator must configure `main`
   of an earlier commit stays valid and a later push (a page, an SVG, a build script) would
   merge unreviewed.
 
-The required review is the merge gate. The **Studio artifact** check does not duplicate it: on a
-privileged change without an approval it reports the requirement and **stays green**, so CI is
+The required review is the merge gate. The **Studio artifact** check does not duplicate it: a
+privileged change makes the check **name the changed build-surface paths and stay green**, so CI is
 never blocked by a missing review. GitHub blocks the merge until a human approval exists and lets
 it through the moment it does, with no re-run; stale approvals are dismissed and an approval after
 the last push is required, so the review always applies to the head that would merge. The check
-does not publish the reviewed head: its run carries a status and a conclusion only, and the
-`approval` outcome's hint names the requirement, not a SHA. Its review half (`permissionMap`,
-`approvedLogins`, the collaborators fetch) is report-only and decides nothing.
+does not publish the reviewed head: its run carries a status and a conclusion only. It reads no
+reviews and no collaborator permissions either: with the review enforced by the repository, a
+second count could only pick a log line, while a failed read of that data would have failed the
+check for something that decides nothing.
 
 The check stays fail-closed where it is the only guard: an untrustworthy file list, malformed
 metadata, the artifact-only path rule, and a newest check run that is not the one it registered.
@@ -90,18 +91,20 @@ a workflow in the candidate's branch can post one. It asks the API for the newes
 suite and name and requires that run to be the one it registered; when it is not, the workflow
 fails its **own** run and skips validation, so the log records why it did not vouch for that head.
 It cannot withdraw a foreign run: if that run is the newer one, whether the merge box reads the
-foreign success or this failure depends on an ordering rule nobody has confirmed, and a run posted
-after this workflow finishes is never seen at all. That is why the required review is the other
-gate, and the complete fix is to post this check from a dedicated GitHub App and require *that*
-app's check on the branch — an App installation rather than a code change here.
+foreign success or this failure depends on an ordering rule nobody has confirmed. A run posted
+after the probe reads its listing is never seen either — the probe reads once, and validation and
+the report come after that read — so such a head can still end green here. That is why the required
+review is the other gate, and the complete fix is to post this check from a dedicated GitHub App and
+require *that* app's check on the branch — an App installation rather than a code change here.
 
-Because this check is advisory for approvals, the required review and the other required check
-are what stand between a change and the merge, and GitHub counts an installed App's approval as a
+Because this check only reports, the required review and the other required check are what stand
+between a change and the merge, and GitHub counts an installed App's approval as a
 write-permission review. `.github/CODEOWNERS` therefore maps every path to the four maintainers
 in one rule, and `main` requires a code-owner review: apps cannot satisfy CODEOWNERS, so one
 maintainer approval covers both requirements with no re-run.
 These are GitHub settings; this workflow file alone does not enable protection.
-Confirm the live settings and an App-authored PR before declaring automatic publication
+Confirm the live settings, and test here what the human-only gate rests on — an installed App's
+approving review against the code-owner requirement — before declaring automatic publication
 operational.
 
 No private-source credential is available here. Provenance validation checks the declared
