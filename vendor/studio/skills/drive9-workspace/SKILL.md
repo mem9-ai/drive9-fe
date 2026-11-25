@@ -15,7 +15,7 @@ Requires Python 3.9.2+ and a usable native credential store: macOS Keychain, Lin
 
 On first use, after confirming a compatible interpreter is already available (prefer an existing newer version), inspect and run [the official installer](https://drive9.ai/studio/skills/tidb-agent-workspace/install.py) with an existing compatible Python in isolated mode. It installs the helper and its private dependencies once, reuses a healthy environment on updates and preserves customized skill files. Its scope is the managed skill, one private Python environment and their dependencies; report commands use the selected project and native credential store. It never installs or upgrades Python itself. Reuse a verified installed helper without downloading and reviewing it again on each report. If dependency setup fails, report the failure and stop; do not change runtimes or retry installations repeatedly.
 
-If the installed helper does not list `--json` in `--help`, update it once with the official installer to get the project-boundary fix. Preserve its existing environment and bindings. Otherwise reuse it.
+If the installed helper does not list `--json` in `--help`, update it once with the official installer to get the project-boundary fix. Preserve its existing environment and bindings. Otherwise reuse it. If the skill is installed and its `workspace-api.md` has no `## Endpoint trust` section, re-run the official installer once; that document changes independently of the Python helper.
 
 Run the installed helper by absolute path from the current project:
 
