@@ -111,7 +111,7 @@ def install_assets(skills, runtime):
 
 # fmt: off
 LEGACY_ASSETS = {"SKILL.md":"69989c9db22cb59664962886bc0fd2f2ade4b1c1e07b249b38ab3038d165fdce","report.py":"4124d8ce10041b0fe6ff06f5ce22d975ccd1f433338ed51071441eda43db6f06","private_csv.py":"2f964c6b234456a80e5d5ace57d3a70882375dbeddbedee87fe22d970d3cc262"}
-ASSETS = {"SKILL.md":"f09c9b63c199608373bb0aa6238ff0c8ebd67c85ef37d1ac1ae4f4fa54ff815d","private-csv.md":"8d3acadc2f43ee81e3235bc66aed345a2064ed7046cecdbaec2391957fcffcc4","workspace-api.md":"93d3acc36e4f55d34bf4700a3634373cfbedd96514a12171af51f9e44cb4ed0b","report.py":"f6bd6d5f22132028b972eca9e6cd34363e1c3352df4dccf84b6176e5cf648ce4","private_csv.py":"8da55f5d495a6da7811bb5d8ea3a1880d91a3ad4cf11e0402d5808632281f6b5"}
+ASSETS = {"SKILL.md":"274aae4ffd053ff0eea634b25bfc0beda70241cff938fbf9d0511cec01e451df","private-csv.md":"8d3acadc2f43ee81e3235bc66aed345a2064ed7046cecdbaec2391957fcffcc4","workspace-api.md":"458eb159803bd65a92cbaa86caac5933bf7e859ce048e2510dde67d79e2e313b","report.py":"f6bd6d5f22132028b972eca9e6cd34363e1c3352df4dccf84b6176e5cf648ce4","private_csv.py":"8da55f5d495a6da7811bb5d8ea3a1880d91a3ad4cf11e0402d5808632281f6b5"}
 # fmt: on
 
 if __name__ == "__main__":
