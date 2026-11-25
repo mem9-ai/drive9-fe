@@ -30,8 +30,9 @@ export async function validateStudioPublication(repository, head, artifactOnly, 
   }
   const temporary = await mkdtemp(join(tmpdir(), 'studio-candidate-'));
   try {
-    // The extraction scope comes from the same constants the exemption uses, so a
-    // widened artifact cannot be validated here while being waved through there.
+    // The extraction scope comes from the same constants the artifact-only rule
+    // above uses, so a widened artifact cannot pass that rule while this scope
+    // never walks it.
     const artifactDirectory = CONSOLE_ARTIFACT_DIRECTORY.replace(/\/$/, '');
     const scope = [artifactDirectory, CONSOLE_MANIFEST];
     // Extract the detached signature only when a key is pinned: it is optional

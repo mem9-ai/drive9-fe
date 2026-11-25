@@ -66,10 +66,10 @@ test('every published file is gated, and the release redirect is pinned', () => 
 });
 
 test('every console-artifact path is also a privileged build path', () => {
-  // The surface is evaluated before the exemption, so a path the exemption accepts
-  // but the surface does not would read "Build surface unchanged." — green with no
-  // approval and without the validator ever walking that path. The corpus derives
-  // from the shared constants, so admitting a new artifact widens it in one edit.
+  // A path the validator's artifact-only rule admits but the surface does not gate
+  // would read "Build surface unchanged.", so the report would never name a change
+  // the validator still walks. The corpus derives from the shared constants, so
+  // admitting a new artifact widens it in one edit.
   const positives = [
     `${CONSOLE_ARTIFACT_DIRECTORY}index.html`,
     `${CONSOLE_ARTIFACT_DIRECTORY}assets/app.js`,

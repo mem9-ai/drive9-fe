@@ -1,14 +1,9 @@
-# Code owners are used for review requests, not as a merge gate: the gate is the
-# required "Studio artifact" check (fail closed without an approving review on the
-# exact head) plus the repository's required approvals.
+# Code owners drive review requests, and — with "Require review from Code Owners"
+# enabled on main — make the required approval human-only: a GitHub App cannot
+# satisfy CODEOWNERS, so an installed App's approval cannot stand in for a
+# maintainer's. The single rule maps every path to the same maintainer set, so one
+# approval satisfies both the required review and the code-owner requirement.
 #
-# Deliberately coarse: one rule per privileged area. The enforced path list lives
-# in scripts/build-surface.mjs and is what the workflow actually checks.
-/.github/           @qiffang @srstack @mornyx @mashenjun
-/scripts/           @qiffang @srstack @mornyx @mashenjun
-/site/              @qiffang @srstack @mornyx @mashenjun
-/netlify.toml       @qiffang @srstack @mornyx @mashenjun
-/netlify/           @qiffang @srstack @mornyx @mashenjun
-/vendor/            @qiffang @srstack @mornyx @mashenjun
-/package.json       @qiffang @srstack @mornyx @mashenjun
-/package-lock.json  @qiffang @srstack @mornyx @mashenjun
+# This file is about who reviews; the enforced traversal lives in the workflow and
+# the validator, not in a path list here.
+* @qiffang @srstack @mornyx @mashenjun

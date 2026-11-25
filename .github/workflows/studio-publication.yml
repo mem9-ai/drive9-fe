@@ -7,12 +7,14 @@ on:
   # `pull_request_review` is deliberately absent: GitHub runs that event with the
   # workflow file from the pull request head, and this workflow issues the
   # required check, so a candidate could register a passing check on itself.
-  # After an approval, re-run this workflow (or push) to turn the check green.
+  # The approval is enforced by the repository's required reviews instead — with a
+  # code-owner requirement, so a human must approve — and GitHub clears them the
+  # moment a reviewer approves, so this check never needs a re-run after one.
 
 permissions:
   contents: read
   checks: write
-  # Required to read the PR's reviews for the build-surface approval gate.
+  # Required to read the PR's changed-file listing and metadata.
   pull-requests: read
 
 concurrency:
@@ -50,43 +52,27 @@ jobs:
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: git fetch --no-tags --depth=1 origin "$HEAD_SHA"
-      - name: Require a maintainer approval for build-surface changes
+      - name: Report the build-surface change
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          # Author identity as GitHub reports it, never the sender and never a
-          # branch name. `user.type` alone is too coarse — every installed GitHub
-          # App authors as `Bot` — so the exemption also pins the publisher app's
-          # login, and still requires every changed path to be the artifact.
-          PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
-          PR_AUTHOR_LOGIN: ${{ github.event.pull_request.user.login }}
         run: |
           # Netlify executes this surface from the merged revision, so a change to
           # it changes code execution in the deploy environment. Every decision
-          # lives in scripts/publication-approval.mjs (`gate`): this step only
+          # lives in scripts/publication-check.mjs (`gate`): this step only
           # fetches GitHub's objects, retries a listing that is not trustworthy
           # yet, and forwards the exit status. 0 = pass, 3 = retry, anything else
-          # fails closed. Approval is not decided here: the repository's required
-          # reviews gate the merge and clear themselves when a reviewer approves,
-          # so this check never needs a manual re-run after an approval.
+          # fails closed. Nothing here decides the merge; the event-level comment
+          # above says where the approval lives.
           status=1
           for attempt in 1 2; do
             gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" > "$RUNNER_TEMP/files.json"
             gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > "$RUNNER_TEMP/pull.json"
-            # Fetched on every attempt so one gate call sees one consistent set of
-            # inputs: a content-only PR now depends on this third read succeeding,
-            # which fails closed and is recovered by the attempt loop.
-            gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews?per_page=100" > "$RUNNER_TEMP/reviews.json"
-            # Approver authorization comes from GitHub's own permission model:
-            # write access is the bar, and author_association alone is too weak.
-            gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/collaborators?affiliation=all&per_page=100" > "$RUNNER_TEMP/collaborators.json"
             set +e
-            node scripts/publication-approval.mjs gate \
+            node scripts/publication-check.mjs gate \
               --files "$RUNNER_TEMP/files.json" --pull "$RUNNER_TEMP/pull.json" \
-              --reviews "$RUNNER_TEMP/reviews.json" --collaborators "$RUNNER_TEMP/collaborators.json" \
               --head "$HEAD_SHA" \
-              --author-type "$PR_AUTHOR_TYPE" --author-login "$PR_AUTHOR_LOGIN" \
               --paths-out "$RUNNER_TEMP/changed-paths.txt"
             status=$?
             set -e
@@ -97,13 +83,29 @@ jobs:
             sleep 3
           done
           exit "$status"
+      - name: Reject a foreign Studio artifact check run on this head
+        if: steps.check.outputs.id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHECK_ID: ${{ steps.check.outputs.id }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # The required check is matched by name, and a workflow in the candidate's
+          # branch could post a run with the same name. `filter=latest` returns the
+          # newest run per check suite and name, so our own earlier attempts are
+          # excluded by construction and the newest run must be the one registered
+          # above.
+          gh api --paginate --slurp \
+            "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/check-runs?check_name=Studio%20artifact&filter=latest&per_page=100" \
+            > "$RUNNER_TEMP/check-runs.json"
+          node scripts/publication-check.mjs foreign-check \
+            --check-runs "$RUNNER_TEMP/check-runs.json" --check-id "$CHECK_ID"
       - name: Validate candidate data with trusted code
         id: validate
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          # Artifact-only validation uses the same identity story as the approval
-          # exemption: the publisher app's server-assigned login, nothing else.
-          # `sender` and the branch name are deliberately not consulted.
+          # Artifact-only validation keys on the publisher app's server-assigned
+          # login, nothing else. `sender` and the branch name are not consulted.
           ARTIFACT_ONLY: ${{ github.event.pull_request.user.login == 'mem9-studio-publisher[bot]' }}
         run: node scripts/validate-studio-publication.mjs "$HEAD_SHA" "$ARTIFACT_ONLY" "$RUNNER_TEMP/changed-paths.txt"
       - name: Report the required result on that same head
