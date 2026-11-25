@@ -1,8 +1,10 @@
 name: Studio artifact validation
 
 on:
+  # Every base branch, not only main. A stacked PR targeting another branch is how
+  # a follow-up arrives after a gate change is approved, and it must run the suite
+  # before anyone reviews it; a base filter would leave that PR with no CI at all.
   pull_request:
-    branches: [main]
   push:
     branches: [main]
 
