@@ -7,7 +7,9 @@ on:
   # `pull_request_review` is deliberately absent: GitHub runs that event with the
   # workflow file from the pull request head, and this workflow issues the
   # required check, so a candidate could register a passing check on itself.
-  # After an approval, re-run this workflow (or push) to turn the check green.
+  # Approval is enforced by the repository's required reviews, which GitHub
+  # clears once a reviewer approves, so this check reports the requirement and
+  # does not need a re-run.
 
 permissions:
   contents: read
@@ -50,7 +52,7 @@ jobs:
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: git fetch --no-tags --depth=1 origin "$HEAD_SHA"
-      - name: Require a maintainer approval for build-surface changes
+      - name: Report the build-surface approval requirement
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -105,11 +107,11 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           # The required check is matched by name, and a workflow in the candidate's
-          # branch could post a run with the same name; GitHub evaluates the latest
-          # run per name. Any run on this head that is not the one registered above
-          # fails the check instead of standing in for it.
+          # branch could post a run with the same name. `filter=latest` is the run
+          # GitHub evaluates for that name, so it must be the one registered above;
+          # earlier attempts of this workflow are excluded by construction.
           gh api --paginate --slurp \
-            "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/check-runs?check_name=Studio%20artifact&filter=all&per_page=100" \
+            "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/check-runs?check_name=Studio%20artifact&filter=latest&per_page=100" \
             > "$RUNNER_TEMP/check-runs.json"
           node scripts/publication-approval.mjs foreign-check \
             --check-runs "$RUNNER_TEMP/check-runs.json" --check-id "$CHECK_ID"

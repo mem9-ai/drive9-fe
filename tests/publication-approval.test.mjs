@@ -175,7 +175,7 @@ test('the gate reports every outcome, retries the unverifiable one, and never fa
   assert.equal(await readFile(pathsOut, 'utf8'), 'vendor/studio/index.html\nvendor/studio-build.json\n');
 
   // The same files from any other app, or mixed with code: not exempt, so the
-  // outcome is the fail-closed approval one rather than a pass through the exemption.
+  // outcome is the advisory approval one rather than a pass through the exemption.
   const otherApp = await run(['vendor/studio/index.html'], { authorType: 'Bot', authorLogin: 'dependabot[bot]', reviewsPath: none });
   assert.equal(otherApp.status, 0);
   assert.match(otherApp.stdout, /Build surface changed \(approval\)/);
@@ -255,36 +255,68 @@ test('only the publisher app publishing nothing but the artifact skips the appro
   assert.equal(botArtifactOnlyPublication([], 'Bot', 'mem9-studio-publisher[bot]'), false);
 });
 
-test('a check run that is not the one this workflow registered is refused', async t => {
+test('the probe trusts only the latest required check run it registered', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'publication-foreign-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const cli = fileURLToPath(new URL('../scripts/publication-approval.mjs', import.meta.url));
-  const runs = join(directory, 'check-runs.json');
+  const file = join(directory, 'check-runs.json');
+  // `gh api --paginate --slurp` on this endpoint wraps a page *object*:
+  // [{"total_count": n, "check_runs": [...]}]. The command is asked for
+  // filter=latest, so exactly one run is expected.
+  const listing = runs => JSON.stringify([{ total_count: runs.length, check_runs: runs }]);
+  const run = async (body, ownId = '111') => {
+    await writeFile(file, body);
+    return spawnSync(process.execPath, [cli, 'foreign-check', '--check-runs', file, '--check-id', String(ownId)], { encoding: 'utf8' });
+  };
 
-  // Paginated pages, our own run only: accepted.
-  await writeFile(runs, JSON.stringify([[{ id: 111, status: 'in_progress' }]]));
-  const own = spawnSync(process.execPath, [cli, 'foreign-check', '--check-runs', runs, '--check-id', '111'], { encoding: 'utf8' });
+  // Our own run is the latest: pass.
+  const own = await run(listing([{ id: 111, status: 'in_progress' }]));
   assert.equal(own.status, 0);
-  assert.match(own.stdout, /No foreign check run/);
+  assert.match(own.stdout, /is the one this workflow registered/);
 
-  // A second run with the required name means a candidate workflow posted one.
-  await writeFile(runs, JSON.stringify([[{ id: 111 }, { id: 222, conclusion: 'success' }]]));
-  const foreign = spawnSync(process.execPath, [cli, 'foreign-check', '--check-runs', runs, '--check-id', '111'], { encoding: 'utf8' });
+  // A foreign run is the latest run GitHub would evaluate: fail.
+  const foreign = await run(listing([{ id: 222, conclusion: 'success' }]));
   assert.equal(foreign.status, 1);
-  assert.match(foreign.stderr, /Foreign check run 222/);
+  assert.match(foreign.stderr, /own check run \(111\) is absent/);
 
-  // The comparison is by id, not by type: a string id for our own run is fine.
-  await writeFile(runs, JSON.stringify([{ id: '111' }]));
-  const stringId = spawnSync(process.execPath, [cli, 'foreign-check', '--check-runs', runs, '--check-id', '111'], { encoding: 'utf8' });
-  assert.equal(stringId.status, 0);
+  // Our own run present but another run in the same listing: still fail.
+  const both = await run(listing([{ id: 111 }, { id: 222, conclusion: 'success' }]));
+  assert.equal(both.status, 1);
+  assert.match(both.stderr, /Foreign check run 222/);
+
+  // Fail closed on every unreadable shape rather than reporting "no foreign run".
+  for (const body of [
+    '[]',
+    JSON.stringify([{}]),
+    JSON.stringify([{ total_count: 0, check_runs: [] }]),
+    JSON.stringify([{ check_runs: [{ id: 'not-a-number' }] }]),
+    'not json',
+  ]) {
+    const rejected = await run(body);
+    assert.equal(rejected.status, 1, body);
+    assert.match(rejected.stderr, /Refusing to trust the check-run listing/, body);
+  }
+
+  // A missing file and a missing/empty id are failures, not passes.
+  const missingFile = spawnSync(process.execPath, [cli, 'foreign-check', '--check-runs', join(directory, 'absent.json'), '--check-id', '111'], { encoding: 'utf8' });
+  assert.equal(missingFile.status, 1);
+  for (const ownId of ['', '  ', 'abc']) {
+    const noId = await run(listing([{ id: 111 }]), ownId);
+    assert.equal(noId.status, 1, `ownId=${JSON.stringify(ownId)}`);
+  }
 });
 
-test('the workflow refuses a foreign check run before it validates', () => {
+test('the workflow pins the probe to filter=latest and fails the check when validation is skipped', () => {
   const workflow = readFileSync(new URL('../.github/workflows/studio-publication.yml', import.meta.url), 'utf8');
-  assert.match(workflow, /check-runs\?check_name=Studio%20artifact&filter=all/);
+  // The run GitHub evaluates is the latest one for that name; earlier attempts of
+  // this workflow must not be mistaken for foreign runs.
+  assert.match(workflow, /check-runs\?check_name=Studio%20artifact&filter=latest/);
+  assert.doesNotMatch(workflow, /filter=all/);
   assert.match(workflow, /publication-approval\.mjs foreign-check/);
   assert.match(workflow, /--check-id "\$CHECK_ID"/);
-  // The probe runs before the validation step, so a foreign run cannot precede a
-  // green result.
+  // The probe fails the required check because the report step takes its
+  // conclusion from the validation outcome and validation follows the probe.
   assert.ok(workflow.indexOf('foreign-check') < workflow.indexOf('Validate candidate data with trusted code'));
+  assert.match(workflow, /CONCLUSION: \$\{\{ steps\.validate\.outcome == 'success' && 'success' \|\| 'failure' \}\}/);
+  assert.match(workflow, /if: always\(\) && steps\.check\.outputs\.id != ''/);
 });

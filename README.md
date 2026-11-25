@@ -47,9 +47,11 @@ revision. It reads candidate Git blobs at the event's exact head SHA as data: it
 checks out or executes candidate scripts/workflows. All bot-authored/updated PRs and the
 managed publication branch are restricted to artifact paths, including changes/deletions of
 validators and workflows. Human code PRs still run ordinary **Website tests** separately.
-The trusted workflow alone has Checks write, solely to report **Studio artifact** against
-the candidate head (the target event's own SHA is the default branch). The publishing App
-has Checks read and no Workflows permission; it cannot write this result or alter workflows.
+This workflow declares Checks write, solely to report **Studio artifact** against the
+candidate head (the target event's own SHA is the default branch). A workflow file in a
+candidate branch can declare the same permission and post a run with the same name, which is
+why the check refuses a foreign run and why the required review is the other gate. The
+publishing App has Checks read and no Workflows permission; it cannot write this result.
 See GitHub's [trusted-event guidance](https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target).
 
 Before declaring publication operational, an administrator must configure `main` as follows:
@@ -85,11 +87,14 @@ workflow in the candidate's branch can post one, and GitHub evaluates the latest
 so any run that is not the one this workflow registered fails the check. That probe cannot see
 a run posted after this workflow finishes, so the required review stays the other gate. The
 complete fix is to post the required check from a dedicated GitHub App and require *that* app's
-check on the branch; that needs an App installation rather than a code change here. Re-run *Trusted
-Studio publication validation* after approving, and it turns green on the same head. If that
-manual step is unwanted, the alternative is `require_code_owner_reviews: true` with a
-catch-all `CODEOWNERS` rule — apps cannot satisfy CODEOWNERS — at the cost of requiring a code
-owner's approval. These are GitHub settings; this workflow file alone does not enable protection.
+check on the branch; that needs an App installation rather than a code change here.
+
+Because this check is advisory for approvals, the review requirement is the only thing standing
+between a change and the merge, and GitHub counts an installed App's approval as a
+write-permission review. Making that gate human-only therefore needs
+`require_code_owner_reviews: true` with the catch-all `CODEOWNERS` rule above — apps cannot
+satisfy CODEOWNERS — and one maintainer approval then covers both requirements with no re-run.
+These are GitHub settings; this workflow file alone does not enable protection.
 Confirm the live settings and an App-authored PR before declaring automatic publication
 operational.
 

@@ -52,14 +52,29 @@ export function approvedLogins(reviews, head, permissions = {}) {
 }
 
 // The required check is identified by name, and a workflow in the candidate's own
-// branch can post a check run with the same name. GitHub evaluates the latest run
-// per name, so a foreign run could stand in for this one. This returns the runs
-// that are not ours, including one posted by a candidate-authored workflow; the
-// workflow turns a non-empty list into a failed check. It cannot catch a run
-// posted after this one finishes, which is why the required review stays the
-// other gate.
-export function foreignCheckRuns(runs, ownId) {
-  return flattenPages(runs).filter(run => run && run.id !== undefined && String(run.id) !== String(ownId));
+// branch can post a run with the same name. The workflow asks for `filter=latest`,
+// which is the single run GitHub evaluates for that name, and this asserts that
+// the run is the one the workflow registered. A malformed page, an empty listing,
+// a missing own run or any other id is a failure, not a pass: this check is the
+// only place that name is trusted, so it cannot ignore what it does not recognise.
+// It cannot see a run posted after this one completes, which is the residual the
+// README documents and why the required review is the other gate.
+export function foreignCheckRuns(pages, ownId) {
+  if (String(ownId ?? '').trim() === '') throw new Error('No check-run id was provided.');
+  if (!Array.isArray(pages) || pages.length === 0) throw new Error('Check-run listing is missing.');
+  const runs = [];
+  for (const page of pages) {
+    if (!page || !Array.isArray(page.check_runs)) throw new Error('Check-run listing is malformed.');
+    runs.push(...page.check_runs);
+  }
+  if (runs.length === 0) throw new Error('Check-run listing is empty.');
+  for (const run of runs) {
+    if (!run || typeof run.id !== 'number') throw new Error('Check-run listing is malformed.');
+  }
+  if (!runs.some(run => run.id === Number(ownId))) {
+    throw new Error(`This workflow's own check run (${ownId}) is absent from the listing.`);
+  }
+  return runs.filter(run => run.id !== Number(ownId));
 }
 
 // The Console publisher app opens artifact-only pull requests and merges them
@@ -116,9 +131,13 @@ export function changedPaths(files, pull, head) {
 //   'unverifiable'— the file list cannot be trusted yet, retry
 //
 // The approval outcome is advisory: this check never goes red for a missing
-// review. Merging is gated by the repository's required reviews on the latest
-// head (`dismiss_stale_reviews` and `require_last_push_approval` are on), which
-// GitHub clears the moment a reviewer approves — so no re-run is needed.
+// review, so CI is never blocked by one. Everything the review half of this
+// module computes (`permissionMap`, `approvedLogins`, the collaborator fetch) is
+// **report-only** — it is printed, and it never changes the exit status. The
+// merge gate is the repository's required reviews on the latest head
+// (`dismiss_stale_reviews`, `require_last_push_approval`, and Code Owners so the
+// approval is human-only), which GitHub clears the moment a reviewer approves,
+// so no re-run is needed.
 //
 // The exact-head requirement is still reported here (`approvedLogins` rejects an
 // approval of an earlier commit and the hint names the head), which keeps the
@@ -169,16 +188,21 @@ const option = (args, name) => {
 if (invokedDirectly()) {
   const [command, ...args] = process.argv.slice(2);
   if (command === 'foreign-check') {
-    const runs = foreignCheckRuns(readJson(option(args, '--check-runs')), option(args, '--check-id'));
-    if (runs.length === 0) {
-      console.log('No foreign check run on this head.');
-    } else {
-      for (const run of runs) {
-        console.error(
-          `Foreign check run ${run.id} (${run.conclusion ?? run.status ?? 'unknown'}) on this head: `
-            + 'the required check must come from this workflow.',
-        );
+    try {
+      const runs = foreignCheckRuns(readJson(option(args, '--check-runs')), option(args, '--check-id'));
+      if (runs.length === 0) {
+        console.log('The latest required check run on this head is the one this workflow registered.');
+      } else {
+        for (const run of runs) {
+          console.error(
+            `Foreign check run ${run.id} (${run.conclusion ?? run.status ?? 'unknown'}) on this head: `
+              + 'the required check must come from this workflow.',
+          );
+        }
+        process.exitCode = 1;
       }
+    } catch (error) {
+      console.error(`Refusing to trust the check-run listing: ${error.message}`);
       process.exitCode = 1;
     }
   } else if (command !== 'gate') {
