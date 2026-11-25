@@ -1,8 +1,8 @@
 # Code owners drive review requests, and — with "Require review from Code Owners"
 # enabled on main — make the required approval human-only: a GitHub App cannot
 # satisfy CODEOWNERS, so an installed App's approval cannot stand in for a
-# maintainer's. Every rule maps to the same maintainer set, so one approval
-# satisfies both the required review and the code-owner requirement.
+# maintainer's. The single rule maps every path to the same maintainer set, so one
+# approval satisfies both the required review and the code-owner requirement.
 #
 # This file is about who reviews; the enforced traversal lives in the workflow and
 # the validator, not in a path list here.

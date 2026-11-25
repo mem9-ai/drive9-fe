@@ -37,7 +37,8 @@ export const flattenPages = value => (Array.isArray(value) ? value.flat() : []);
 // Logins whose latest state-carrying review approves this exact head. An
 // ordinary comment after an approval does not revoke it, an approval of an
 // earlier commit does not count, and only someone with write access qualifies.
-// `permissions` comes from permissionMap; a login missing from it fails closed.
+// `permissions` comes from permissionMap; a login missing from it is not reported
+// as an approver. Nothing here decides the merge: the result is printed only.
 export function approvedLogins(reviews, head, permissions = {}) {
   const latest = new Map();
   for (const review of flattenPages(reviews)) {
@@ -84,12 +85,12 @@ export function foreignCheckRuns(pages, ownId) {
   return runs.filter(run => run.id !== Number(ownId));
 }
 
-// The Console publisher app opens artifact-only pull requests and merges them
-// itself (24 of them in the week before this gate was written, every one merged
-// by the app with no review). Requiring a maintainer to approve a minified
-// bundle would not add a real control, and it would stop that pipeline: the
-// honest control for those releases is the artifact path allowlist, the manifest
-// checksum check and the credential scan that still run.
+// The Console publisher app opens artifact-only pull requests. This module no
+// longer exempts them from anything that decides a merge — the repository's
+// required review applies to every PR, the publisher's included — it only labels
+// the publication as artifact-only in the log. The controls that do apply to
+// those releases are the artifact path allowlist, the manifest checksum check,
+// the pinned signature and the credential scan in the validator.
 //
 // The principal is the publisher app itself, not "any bot": GitHub enforces no
 // such thing as a single `Bot` type — every GitHub App installed on the
@@ -146,11 +147,12 @@ export function changedPaths(files, pull, head) {
 // approval human), which GitHub clears the moment a reviewer approves, so no
 // re-run is needed.
 //
-// The exact-head requirement is still reported here (`approvedLogins` rejects an
-// approval of an earlier commit and the hint names the head), which keeps the
-// mismatch visible instead of silent. This check stays fail-closed where it is
-// the only guard: an untrustworthy listing, malformed metadata, the artifact-only
-// path rule, and a foreign check run with the same name.
+// The exact-head requirement is still reported here: `approvedLogins` rejects an
+// approval of an earlier commit and the hint names the requirement (not a SHA, so
+// it reads the same for "no review yet" and for "review of an earlier commit").
+// The check stays fail-closed where it is the only guard: an untrustworthy
+// listing, malformed metadata, the artifact-only path rule, and a newest check
+// run that is not the one this workflow registered.
 // A stale head, a truncated listing or malformed pull metadata is an expected
 // condition, not an exception: `gate` returns `unverifiable` with the reason, so
 // a programmatic caller never has to catch to learn "retry".
@@ -223,7 +225,7 @@ if (invokedDirectly()) {
         files: readJson(option(args, '--files')),
         pull: readJson(option(args, '--pull')),
         reviews: readJson(option(args, '--reviews')),
-        // Absent collaborator data yields no eligible approver: fail closed.
+        // Absent collaborator data yields no reported approver; nothing is decided here.
         collaborators: option(args, '--collaborators') ? readJson(option(args, '--collaborators')) : [],
         head: option(args, '--head'),
         authorType: option(args, '--author-type'),
@@ -247,7 +249,7 @@ if (invokedDirectly()) {
           console.log(`Build surface changed (${result.outcome}):`);
           for (const path of result.changed) console.log(path);
           if (result.outcome === 'exempt') {
-            console.log(`Artifact-only publication by ${option(args, '--author-login')}: no maintainer approval is required.`);
+            console.log(`Artifact-only publication by ${option(args, '--author-login')}: the repository's required review still applies.`);
           } else if (result.outcome === 'approved') {
             console.log(`Approved by ${result.approved.join(', ')} on this head.`);
           } else {

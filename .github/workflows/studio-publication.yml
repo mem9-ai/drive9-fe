@@ -7,9 +7,9 @@ on:
   # `pull_request_review` is deliberately absent: GitHub runs that event with the
   # workflow file from the pull request head, and this workflow issues the
   # required check, so a candidate could register a passing check on itself.
-  # Approval is enforced by the repository's required reviews, which GitHub
-  # clears once a reviewer approves, so this check reports the requirement and
-  # does not need a re-run.
+  # The approval is enforced by the repository's required reviews (with a
+  # code-owner requirement), which GitHub clears once a reviewer approves, so this
+  # check reports the requirement and does not need a re-run.
 
 permissions:
   contents: read
@@ -80,8 +80,9 @@ jobs:
             # inputs: a content-only PR now depends on this third read succeeding,
             # which fails closed and is recovered by the attempt loop.
             gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews?per_page=100" > "$RUNNER_TEMP/reviews.json"
-            # Approver authorization comes from GitHub's own permission model:
-            # write access is the bar, and author_association alone is too weak.
+            # Report-only: these two reads feed the log line that names who would
+            # qualify. The merge gate is the repository's required review, with a
+            # code-owner requirement that keeps the approval human.
             gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/collaborators?affiliation=all&per_page=100" > "$RUNNER_TEMP/collaborators.json"
             set +e
             node scripts/publication-approval.mjs gate \

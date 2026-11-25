@@ -46,8 +46,8 @@ The check has no deployment credentials and runs for every PR, including fork PR
 It uses `pull_request_target` and explicitly checks out the immutable trusted default-branch
 revision. It reads candidate Git blobs at the event's exact head SHA as data: it never
 checks out or executes candidate scripts/workflows. A publication PR from the publisher app,
-and any PR that touches an artifact path, may change only artifact paths — including the
-validators and workflows, which such a PR may not touch at all. Human code PRs still run
+and any PR that touches an artifact path, may change only artifact paths; such a PR may not
+touch the validators or the workflows at all. Human code PRs still run
 ordinary **Website tests** separately.
 This workflow declares Checks write, solely to report **Studio artifact** against the
 candidate head (the target event's own SHA is the default branch). A workflow file in a
@@ -83,18 +83,20 @@ does not publish the reviewed head: its run carries a status and a conclusion on
 `approvedLogins`, the collaborators fetch) is report-only and decides nothing.
 
 The check stays fail-closed where it is the only guard: an untrustworthy file list, malformed
-metadata, the artifact-only path rule, and a foreign check run with the same name.
+metadata, the artifact-only path rule, and a newest check run that is not the one it registered.
 
-The check also refuses a foreign check run with the same name on the candidate head: a
-workflow in the candidate's branch can post one, and GitHub evaluates the newest run per check
-suite and name,
-so any run that is not the one this workflow registered fails the check. That probe cannot see
-a run posted after this workflow finishes, so the required review stays the other gate. The
-complete fix is to post the required check from a dedicated GitHub App and require *that* app's
-check on the branch; that needs an App installation rather than a code change here.
+The check also inspects the check runs named **Studio artifact** on the candidate head, because
+a workflow in the candidate's branch can post one. It asks the API for the newest run per check
+suite and name and requires that run to be the one it registered; when it is not, the workflow
+fails its **own** run and skips validation, so the log records why it did not vouch for that head.
+It cannot withdraw a foreign run: if that run is the newer one, whether the merge box reads the
+foreign success or this failure depends on an ordering rule nobody has confirmed, and a run posted
+after this workflow finishes is never seen at all. That is why the required review is the other
+gate, and the complete fix is to post this check from a dedicated GitHub App and require *that*
+app's check on the branch — an App installation rather than a code change here.
 
-Because this check is advisory for approvals, the review requirement is the only thing standing
-between a change and the merge, and GitHub counts an installed App's approval as a
+Because this check is advisory for approvals, the required review and the other required check
+are what stand between a change and the merge, and GitHub counts an installed App's approval as a
 write-permission review. `.github/CODEOWNERS` therefore maps every path to the four maintainers
 in one rule, and `main` requires a code-owner review: apps cannot satisfy CODEOWNERS, so one
 maintainer approval covers both requirements with no re-run.
